@@ -1,11 +1,12 @@
 #[macro_use]
-extern crate clap;
+extern crate structopt;
 
 mod args;
 mod cfg;
 mod dbg;
 mod fmt;
 mod logger;
+mod bookmark;
 
 use crate::cfg::Config;
 use crate::dbg::dbg_info;
