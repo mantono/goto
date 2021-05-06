@@ -1,15 +1,21 @@
-use std::{collections::HashSet, time::SystemTime};
+use sha2::{Digest, Sha256};
+use std::{
+    collections::HashSet,
+    convert::TryInto,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 use url::Url;
 
-struct Bookmark {
+pub struct Bookmark {
     url: Url,
     timestamp: u64,
     tags: HashSet<String>,
 }
 
 impl Bookmark {
-    pub fn new(url: &str, tags: Option<HashSet<String>>) -> Result<Bookmark, Error> {
-        let url: Url = match Url::parse(url) {
+    pub fn new<T: TryInto<Url>>(url: T, tags: Option<HashSet<String>>) -> Result<Bookmark, Error> {
+        let url: Url = match url.try_into() {
             Ok(url) => url,
             Err(_) => return Err(Error::InvalidUrl),
         };
@@ -37,10 +43,23 @@ impl Bookmark {
     pub fn domain(&self) -> Option<&str> {
         self.url.domain()
     }
+
+    pub fn rel_path(&self) -> PathBuf {
+        let domain = self.domain().unwrap_or("").to_string();
+        let hash = hash(&self.url.to_string());
+        let path: String = [domain, hash].join("/");
+        path.into()
+    }
+}
+
+fn hash(input: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(input);
+    format!("{:02x}", hasher.finalize())
 }
 
 #[derive(Debug)]
-enum Error {
+pub enum Error {
     InvalidUrl,
     NoDomain,
     NoTimestamp,

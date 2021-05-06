@@ -1,6 +1,11 @@
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
+
 use crate::fmt::color_choice;
-use clap::ArgMatches;
 use termcolor::ColorChoice;
+use url::Url;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "goto", about = "Web bookmarks utility")]
@@ -18,22 +23,67 @@ pub struct Config {
     /// encountered and reported
     #[structopt(short = "D", long = "debug")]
     pub print_dbg: bool,
-    pub use_colors: ColorChoice,
+    /// Set use of colors
+    ///
+    /// Enable or disable output with colors. By default, the application will
+    /// try to figure out if colors are supported by the terminal in the current context, and use it
+    /// if possible.
+    /// Possible values are "on", "true", "off", "false", "auto".
+    #[structopt(long = "colors", default_value = "auto")]
+    colors: Flag,
+    #[structopt(subcommand)]
+    pub cmd: Command,
 }
 
 impl Config {
-    pub fn from_args(args: ArgMatches) -> Config {
-        let verbosity_level: u8 = args.value_of("verbosity").unwrap().parse::<u8>().unwrap();
-        let print_dbg: bool = args.is_present("debug");
-        let use_colors: ColorChoice = color_choice(args.value_of("colors").unwrap());
+    pub fn colors(&self) -> ColorChoice {
+        match self.colors {
+            Flag::True => ColorChoice::Always,
+            Flag::False => ColorChoice::Never,
+            Flag::Auto => ColorChoice::Auto,
+        }
+    }
+}
 
-        Config {
-            verbosity_level,
-            print_dbg,
-            use_colors,
+#[derive(Debug, Copy, Clone)]
+enum Flag {
+    True,
+    False,
+    Auto,
+}
+
+impl FromStr for Flag {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "true" | "on" => Ok(Flag::True),
+            "false" | "off" => Ok(Flag::False),
+            "auto" => Ok(Flag::Auto),
+            _ => Err(format!("Unrecognized option {}", s)),
         }
     }
 }
 
 #[derive(Debug, StructOpt)]
-enum Command {}
+pub enum Command {
+    /// Add bookmark with URL
+    Add { url: String },
+    /// Open bookmark in browser
+    ///
+    /// Open a bookmark in the browser that is matching the given keywords. If several bookmarks
+    /// match the keywords, they will be listed instead, with the option to select one bookmark and
+    /// open it. If no bookmark is matching the keywords, the keywords will be directed to a
+    /// search engine.
+    Open { keywords: Vec<String> },
+    /// List bookmarks
+    ///
+    /// List bookmarks matching the keywords, but do not open any bookmark.
+    List { keywords: Vec<String> },
+    /// Edit a bookmark
+    ///
+    /// Edit a bookmark in your editor of choice
+    Edit { path: PathBuf },
+    /// Delete bookmark
+    Delete { path: PathBuf },
+}
