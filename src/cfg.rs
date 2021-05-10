@@ -68,7 +68,9 @@ impl FromStr for Flag {
 #[derive(Debug, StructOpt)]
 pub enum Command {
     /// Add bookmark with URL
-    Add { url: String },
+    ///
+    /// Add bookmark with URL and optionally some tags
+    Add { url: String, tags: Vec<String> },
     /// Open bookmark in browser
     ///
     /// Open a bookmark in the browser that is matching the given keywords. If several bookmarks
