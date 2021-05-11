@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::fmt::color_choice;
+use crate::{fmt::color_choice, Tag};
 use termcolor::ColorChoice;
 use url::Url;
 
@@ -70,18 +70,18 @@ pub enum Command {
     /// Add bookmark with URL
     ///
     /// Add bookmark with URL and optionally some tags
-    Add { url: String, tags: Vec<String> },
+    Add { url: String, tags: Vec<Tag> },
     /// Open bookmark in browser
     ///
     /// Open a bookmark in the browser that is matching the given keywords. If several bookmarks
     /// match the keywords, they will be listed instead, with the option to select one bookmark and
     /// open it. If no bookmark is matching the keywords, the keywords will be directed to a
     /// search engine.
-    Open { keywords: Vec<String> },
+    Open { keywords: Vec<Tag> },
     /// List bookmarks
     ///
     /// List bookmarks matching the keywords, but do not open any bookmark.
-    List { keywords: Vec<String> },
+    List { keywords: Vec<Tag> },
     /// Edit a bookmark
     ///
     /// Edit a bookmark in your editor of choice

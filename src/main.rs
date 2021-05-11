@@ -16,11 +16,13 @@ use dialoguer::Editor;
 use dialoguer::Input;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::io::Write;
+use std::iter::FromIterator;
+use std::{collections::HashSet, io::Write};
 use std::{fmt::Display, hash::Hash, str::FromStr};
 use std::{path::PathBuf, process};
 use structopt::StructOpt;
 use termcolor::{Color, StandardStream};
+use url::Url;
 
 fn main() -> Result<(), Error> {
     let cfg: Config = Config::from_args();
@@ -34,50 +36,86 @@ fn main() -> Result<(), Error> {
     let dir: PathBuf = dir().expect("Unable to find data directory");
     log::info!("Using data directory {:?}", &dir);
 
-    let prot_prefix = regex::Regex::new("^https?://").unwrap();
-
     let stream = std::io::stdout();
     let mut buffer = std::io::BufWriter::new(stream);
 
     match cfg.cmd {
-        cfg::Command::Add { url, tags } => {
-            let url: String = if prot_prefix.is_match(&url) {
-                url
-            } else {
-                format!("https://{}", url)
-            };
-            let url = url::Url::parse(&url).unwrap();
-            let default: String = tags.join(", ");
-            let tags: String = Input::new()
-                .with_prompt("Tags")
-                .default(default)
-                .interact_text()?;
-
-            let tags: Vec<Tag> = Tag::new_vec(tags);
-            let bkm = bookmark::Bookmark::new(url, tags).unwrap();
-
-            let full_path = dir.join(bkm.rel_path());
-            std::fs::create_dir_all(full_path.parent().unwrap())?;
-            println!("path {:?}", full_path);
-
-            let bkm: Bookmark = if full_path.exists() {
-                match Bookmark::from_file(&full_path) {
-                    Some(prior_bkm) => bkm.merge(prior_bkm),
-                    None => bkm,
-                }
-            } else {
-                bkm
-            };
-
-            std::fs::write(full_path, bkm.to_string())?;
-
-            writeln!(buffer, "{}", bkm)?;
-        }
-        cfg::Command::Open { keywords } => {}
-        cfg::Command::List { keywords } => {}
-        cfg::Command::Edit { path } => {}
-        cfg::Command::Delete { path } => {}
+        cfg::Command::Add { url, tags } => add(&mut buffer, &dir, url, tags),
+        cfg::Command::Open { keywords } => open(&mut buffer, &dir, keywords),
+        cfg::Command::List { keywords } => Ok(()),
+        cfg::Command::Edit { path } => Ok(()),
+        cfg::Command::Delete { path } => Ok(()),
     }
+}
+
+use itertools::Itertools;
+
+fn open(buffer: &mut impl Write, dir: &PathBuf, keywords: Vec<Tag>) -> Result<(), Error> {
+    let bkm: Option<Bookmark> = walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_map(|f| f.ok())
+        .inspect(|f| println!("{:?}", f))
+        .filter_map(|f| Bookmark::from_file(&f.into_path()))
+        .filter(|bkm| bkm.tags().iter().any(|tag| keywords.contains(tag)))
+        .map(|bkm| (score(bkm.tags(), &keywords), bkm))
+        .inspect(|(score, bkm)| println!("{}, {}", score, bkm))
+        .filter(|(score, _)| score > &0.0)
+        .sorted_unstable_by(|b0, b1| b0.0.partial_cmp(&b1.0).unwrap())
+        //.sorted_unstable_by(|b0, b1| b0.0.cmp(b1.0))
+        .map(|(_, bkm)| bkm)
+        .next();
+
+    Ok(())
+}
+
+fn score(v0: &Vec<Tag>, v1: &Vec<Tag>) -> f64 {
+    let v0: HashSet<Tag> = HashSet::from_iter(v0.clone());
+    let v1: HashSet<Tag> = HashSet::from_iter(v1.clone());
+    let union: Vec<Tag> = v0.union(&v1).map(|t| t.clone()).collect();
+    let intersection: Vec<Tag> = v0.intersection(&v1).map(|t| t.clone()).collect();
+
+    let union: f64 = union.len() as f64;
+    let intersection: f64 = intersection.len() as f64;
+    intersection / union
+}
+
+fn add(buffer: &mut impl Write, dir: &PathBuf, url: String, tags: Vec<Tag>) -> Result<(), Error> {
+    let url: String = if PROTOCOL_PREFIX.is_match(&url) {
+        url
+    } else {
+        format!("https://{}", url)
+    };
+    let url = url::Url::parse(&url).unwrap();
+    let default: String = tags
+        .iter()
+        .map(|t| t.0.clone())
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    let tags: String = Input::new()
+        .with_prompt("Tags")
+        .default(default)
+        .interact_text()?;
+
+    let tags: Vec<Tag> = Tag::new_vec(tags);
+    let bkm = bookmark::Bookmark::new(url, tags).unwrap();
+
+    let full_path = dir.join(bkm.rel_path());
+    std::fs::create_dir_all(full_path.parent().unwrap())?;
+    println!("path {:?}", full_path);
+
+    let bkm: Bookmark = if full_path.exists() {
+        match Bookmark::from_file(&full_path) {
+            Some(prior_bkm) => bkm.merge(prior_bkm),
+            None => bkm,
+        }
+    } else {
+        bkm
+    };
+
+    std::fs::write(full_path, bkm.to_string())?;
+
+    writeln!(buffer, "{}", bkm)?;
 
     Ok(())
 }
@@ -85,6 +123,7 @@ fn main() -> Result<(), Error> {
 lazy_static! {
     static ref TERMINATOR: Regex = Regex::new(r"[,\s]+").unwrap();
     static ref DISCARD: Regex = Regex::new(r#"[,\s"\\]+"#).unwrap();
+    static ref PROTOCOL_PREFIX: Regex = regex::Regex::new("^https?://").unwrap();
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Clone)]
@@ -119,6 +158,12 @@ impl Tag {
 #[derive(Debug)]
 pub enum TagError {
     Empty,
+}
+
+impl Display for TagError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Tag was empty or contained no valid characters")
+    }
 }
 
 impl Display for Tag {

@@ -12,6 +12,7 @@ use url::Url;
 
 use crate::Tag;
 
+#[derive(PartialEq, Eq, Hash)]
 pub struct Bookmark {
     url: Url,
     tags: Vec<Tag>,
@@ -41,6 +42,10 @@ impl Bookmark {
 
     pub fn domain(&self) -> Option<&str> {
         self.url.domain()
+    }
+
+    pub fn tags(&self) -> &Vec<Tag> {
+        &self.tags
     }
 
     pub fn rel_path(&self) -> PathBuf {
