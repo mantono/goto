@@ -30,14 +30,29 @@ impl Bookmark {
     }
 
     pub fn from_file(path: &PathBuf) -> Option<Self> {
-        if !path.exists() {
+        if !path.exists() && !path.is_file() {
             return None;
         }
+
+        let extension: Option<&str> = match path.extension() {
+            Some(ext) => ext.to_str(),
+            None => None,
+        };
+
+        if extension != Some("bkm") {
+            return None;
+        }
+
         let content: String = std::fs::read_to_string(path).ok()?;
         let content: Vec<&str> = content.lines().take(2).collect_vec();
         let url: &str = content.first()?;
         let tags: Vec<Tag> = Tag::new_vec(*content.last()?);
+
         Bookmark::new(url, tags).ok()
+    }
+
+    pub fn url(&self) -> Url {
+        self.url.clone()
     }
 
     pub fn domain(&self) -> Option<&str> {
@@ -48,9 +63,14 @@ impl Bookmark {
         &self.tags
     }
 
+    pub fn contains(&self, tags: &Vec<Tag>) -> bool {
+        tags.iter().any(|tag| self.tags().contains(tag))
+    }
+
     pub fn rel_path(&self) -> PathBuf {
         let domain = self.domain().unwrap_or("").to_string();
-        let hash = hash(&self.url.to_string());
+        let mut hash = hash(&self.url.to_string());
+        hash.push_str(".bkm");
         let path: String = [domain, hash].join("/");
         path.into()
     }

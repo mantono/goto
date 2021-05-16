@@ -16,8 +16,8 @@ use dialoguer::Editor;
 use dialoguer::Input;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::iter::FromIterator;
 use std::{collections::HashSet, io::Write};
+use std::{ffi::OsStr, iter::FromIterator};
 use std::{fmt::Display, hash::Hash, str::FromStr};
 use std::{path::PathBuf, process};
 use structopt::StructOpt;
@@ -56,14 +56,28 @@ fn open(buffer: &mut impl Write, dir: &PathBuf, keywords: Vec<Tag>) -> Result<()
         .filter_map(|f| f.ok())
         .inspect(|f| println!("{:?}", f))
         .filter_map(|f| Bookmark::from_file(&f.into_path()))
-        .filter(|bkm| bkm.tags().iter().any(|tag| keywords.contains(tag)))
+        .filter(|bkm| bkm.contains(&keywords))
         .map(|bkm| (score(bkm.tags(), &keywords), bkm))
         .inspect(|(score, bkm)| println!("{}, {}", score, bkm))
         .filter(|(score, _)| score > &0.0)
         .sorted_unstable_by(|b0, b1| b0.0.partial_cmp(&b1.0).unwrap())
-        //.sorted_unstable_by(|b0, b1| b0.0.cmp(b1.0))
         .map(|(_, bkm)| bkm)
         .next();
+
+    let url: Url = match bkm {
+        Some(bookmark) => bookmark.url(),
+        None => {
+            let query: String = keywords.iter().map(|t| t.to_string()).join("+");
+            let query = format!("https://duckduckgo.com/?q={}", query);
+            writeln!(
+                buffer,
+                "No bookmark found for keyword(s), searching online instead"
+            )
+            .unwrap();
+            Url::parse(&query).unwrap()
+        }
+    };
+    open::that(url.to_string()).unwrap();
 
     Ok(())
 }

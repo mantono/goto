@@ -19,6 +19,7 @@ walkdir = "2"
 dirs-next = "2.0"
 sha2 = "0.9"
 dialoguer = "0.8"
+open = "1.7"
 
 [build-dependencies]
 built = { version = "0.4", features = ["git2"] }
