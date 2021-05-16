@@ -28,16 +28,16 @@ fn main() -> Result<(), Error> {
     let cfg: Config = Config::from_args();
     setup_logging(cfg.verbosity_level);
 
+    let stream = std::io::stdout();
+    let mut buffer = std::io::BufWriter::new(stream);
+
     if cfg.print_dbg {
-        println!("{}", dbg_info());
+        writeln!(buffer, "{}", dbg_info())?;
         process::exit(0);
     }
 
     let dir: PathBuf = dir().expect("Unable to find data directory");
-    log::info!("Using data directory {:?}", &dir);
-
-    let stream = std::io::stdout();
-    let mut buffer = std::io::BufWriter::new(stream);
+    log::debug!("Using data directory {:?}", &dir);
 
     match cfg.cmd {
         cfg::Command::Add { url, tags } => add(&mut buffer, &dir, url, tags),
@@ -51,13 +51,13 @@ fn main() -> Result<(), Error> {
 use itertools::Itertools;
 
 fn open(buffer: &mut impl Write, dir: &PathBuf, keywords: Vec<Tag>) -> Result<(), Error> {
+    let keywords: HashSet<Tag> = HashSet::from_iter(keywords);
     let bkm: Option<Bookmark> = walkdir::WalkDir::new(dir)
         .into_iter()
         .filter_map(|f| f.ok())
-        .inspect(|f| println!("{:?}", f))
         .filter_map(|f| Bookmark::from_file(&f.into_path()))
-        .filter(|bkm| bkm.contains(&keywords))
-        .map(|bkm| (score(bkm.tags(), &keywords), bkm))
+        //.filter(|bkm| bkm.matches(&keywords))
+        .map(|bkm| (score(&bkm.terms(), &keywords), bkm))
         .inspect(|(score, bkm)| println!("{}, {}", score, bkm))
         .filter(|(score, _)| score > &0.0)
         .sorted_unstable_by(|b0, b1| b0.0.partial_cmp(&b1.0).unwrap())
@@ -82,11 +82,9 @@ fn open(buffer: &mut impl Write, dir: &PathBuf, keywords: Vec<Tag>) -> Result<()
     Ok(())
 }
 
-fn score(v0: &Vec<Tag>, v1: &Vec<Tag>) -> f64 {
-    let v0: HashSet<Tag> = HashSet::from_iter(v0.clone());
-    let v1: HashSet<Tag> = HashSet::from_iter(v1.clone());
-    let union: Vec<Tag> = v0.union(&v1).map(|t| t.clone()).collect();
-    let intersection: Vec<Tag> = v0.intersection(&v1).map(|t| t.clone()).collect();
+fn score(v0: &HashSet<Tag>, v1: &HashSet<Tag>) -> f64 {
+    let union: Vec<&Tag> = v0.union(&v1).collect();
+    let intersection: Vec<&Tag> = v0.intersection(&v1).collect();
 
     let union: f64 = union.len() as f64;
     let intersection: f64 = intersection.len() as f64;
@@ -111,12 +109,11 @@ fn add(buffer: &mut impl Write, dir: &PathBuf, url: String, tags: Vec<Tag>) -> R
         .default(default)
         .interact_text()?;
 
-    let tags: Vec<Tag> = Tag::new_vec(tags);
+    let tags: HashSet<Tag> = Tag::new_set(tags);
     let bkm = bookmark::Bookmark::new(url, tags).unwrap();
 
     let full_path = dir.join(bkm.rel_path());
     std::fs::create_dir_all(full_path.parent().unwrap())?;
-    println!("path {:?}", full_path);
 
     let bkm: Bookmark = if full_path.exists() {
         match Bookmark::from_file(&full_path) {
@@ -161,7 +158,7 @@ impl Tag {
             .to_string()
     }
 
-    pub fn new_vec<T: Into<String>>(tags: T) -> Vec<Tag> {
+    pub fn new_set<T: Into<String>>(tags: T) -> HashSet<Tag> {
         TERMINATOR
             .split(&tags.into())
             .filter_map(|t| Tag::from_str(t).ok())
@@ -191,6 +188,12 @@ impl FromStr for Tag {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Tag::new(s)
+    }
+}
+
+impl AsRef<String> for Tag {
+    fn as_ref(&self) -> &String {
+        &self.0
     }
 }
 

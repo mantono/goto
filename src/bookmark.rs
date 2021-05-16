@@ -1,5 +1,6 @@
 use itertools::join;
 use itertools::Itertools;
+use log::info;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
@@ -8,18 +9,19 @@ use std::{
     path::{Path, PathBuf},
     time::SystemTime,
 };
+use std::{hash::Hash, iter::FromIterator};
 use url::Url;
 
 use crate::Tag;
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq)]
 pub struct Bookmark {
     url: Url,
-    tags: Vec<Tag>,
+    tags: HashSet<Tag>,
 }
 
 impl Bookmark {
-    pub fn new<T: TryInto<Url>>(url: T, tags: Vec<Tag>) -> Result<Self, Error> {
+    pub fn new<T: TryInto<Url>>(url: T, tags: HashSet<Tag>) -> Result<Self, Error> {
         let url: Url = match url.try_into() {
             Ok(url) => url,
             Err(_) => return Err(Error::InvalidUrl),
@@ -46,7 +48,7 @@ impl Bookmark {
         let content: String = std::fs::read_to_string(path).ok()?;
         let content: Vec<&str> = content.lines().take(2).collect_vec();
         let url: &str = content.first()?;
-        let tags: Vec<Tag> = Tag::new_vec(*content.last()?);
+        let tags: HashSet<Tag> = Tag::new_set(*content.last()?);
 
         Bookmark::new(url, tags).ok()
     }
@@ -59,12 +61,27 @@ impl Bookmark {
         self.url.domain()
     }
 
-    pub fn tags(&self) -> &Vec<Tag> {
+    fn root_domain(&self) -> Option<&str> {
+        let parts: Vec<&str> = self.domain()?.split(".").collect();
+        parts.iter().nth_back(1).map(|r| *r)
+    }
+
+    pub fn tags(&self) -> &HashSet<Tag> {
         &self.tags
     }
 
-    pub fn contains(&self, tags: &Vec<Tag>) -> bool {
-        tags.iter().any(|tag| self.tags().contains(tag))
+    pub fn terms(&self) -> HashSet<Tag> {
+        let mut terms: HashSet<Tag> = self.tags.clone();
+        if let Some(domain) = self.root_domain() {
+            Tag::new(domain).ok().and_then(|d| Some(terms.insert(d)));
+        };
+        terms
+    }
+
+    pub fn matches(&self, tags: &HashSet<Tag>) -> bool {
+        let terms: HashSet<Tag> = self.terms();
+        info!("terms: {:?}, tags: {:?}", terms, tags);
+        !terms.intersection(tags).collect_vec().is_empty()
     }
 
     pub fn rel_path(&self) -> PathBuf {
@@ -79,13 +96,11 @@ impl Bookmark {
         if self.url != other.url {
             self
         } else {
-            let tags: Vec<Tag> = self
+            let tags: HashSet<Tag> = self
                 .tags
                 .iter()
                 .chain(other.tags.iter())
                 .map(|tag| tag.clone())
-                .unique()
-                .sorted()
                 .collect();
 
             Bookmark { tags, ..self }
@@ -99,6 +114,15 @@ impl Display for Bookmark {
         let tags: String = self.tags.iter().join(" ");
         write!(f, "{}\n", &tags)?;
         Ok(())
+    }
+}
+
+impl Hash for Bookmark {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.url.hash(state);
+        for t in &self.tags {
+            t.hash(state)
+        }
     }
 }
 
