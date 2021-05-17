@@ -1,18 +1,10 @@
-use itertools::join;
 use itertools::Itertools;
-use log::info;
 use sha2::{Digest, Sha256};
-use std::{
-    collections::HashSet,
-    convert::TryInto,
-    fmt::Display,
-    path::{Path, PathBuf},
-    time::SystemTime,
-};
-use std::{hash::Hash, iter::FromIterator};
+use std::hash::Hash;
+use std::{collections::HashSet, convert::TryInto, fmt::Display, path::PathBuf};
 use url::Url;
 
-use crate::Tag;
+use crate::tag::Tag;
 
 #[derive(PartialEq, Eq)]
 pub struct Bookmark {
@@ -78,12 +70,6 @@ impl Bookmark {
         terms
     }
 
-    pub fn matches(&self, tags: &HashSet<Tag>) -> bool {
-        let terms: HashSet<Tag> = self.terms();
-        info!("terms: {:?}, tags: {:?}", terms, tags);
-        !terms.intersection(tags).collect_vec().is_empty()
-    }
-
     pub fn rel_path(&self) -> PathBuf {
         let domain = self.domain().unwrap_or("").to_string();
         let mut hash = hash(&self.url.to_string());
@@ -136,5 +122,4 @@ fn hash(input: &str) -> String {
 pub enum Error {
     InvalidUrl,
     NoDomain,
-    NoTimestamp,
 }

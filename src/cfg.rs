@@ -1,11 +1,7 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::PathBuf, str::FromStr};
 
-use crate::{fmt::color_choice, Tag};
+use crate::tag::Tag;
 use termcolor::ColorChoice;
-use url::Url;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "goto", about = "Web bookmarks utility")]
@@ -74,10 +70,18 @@ pub enum Command {
     /// Open bookmark in browser
     ///
     /// Open a bookmark in the browser that is matching the given keywords. If several bookmarks
-    /// match the keywords, they will be listed instead, with the option to select one bookmark and
-    /// open it. If no bookmark is matching the keywords, the keywords will be directed to a
-    /// search engine.
+    /// match the keywords, the best matching bookmark will be selected. If no bookmark is matching
+    /// the keywords, the keywords will be directed to a search query in a search engine.
     Open { keywords: Vec<Tag> },
+    /// Select from a list of bookmarks
+    ///
+    /// Select from a list of bookmarks where at least one keyword matches the domain or a tag of
+    /// each bookmark in the list.
+    Select {
+        #[structopt(short = "n", long, default_value = "10")]
+        limit: usize,
+        keywords: Vec<Tag>,
+    },
     /// List bookmarks
     ///
     /// List bookmarks matching the keywords, but do not open any bookmark.
