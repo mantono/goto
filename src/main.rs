@@ -32,12 +32,23 @@ fn main() -> Result<(), Error> {
     log::debug!("Using data directory {:?}", &dir);
 
     match cfg.cmd {
-        cfg::Command::Add { url, tags } => cmd::add(&mut buffer, &dir, url, tags),
-        cfg::Command::Open { keywords } => cmd::open(&mut buffer, &dir, keywords),
-        cfg::Command::Select { limit, keywords } => Ok(()),
-        cfg::Command::List { keywords } => Ok(()),
-        cfg::Command::Edit { path } => Ok(()),
-        cfg::Command::Delete { path } => Ok(()),
+        cmd::Command::Add { url, tags } => cmd::add(&mut buffer, &dir, url, tags),
+        cmd::Command::Open {
+            min_score,
+            keywords,
+        } => cmd::open(&mut buffer, &dir, keywords, min_score),
+        cmd::Command::Select {
+            min_score,
+            limit,
+            keywords,
+        } => Ok(()),
+        cmd::Command::List {
+            min_score,
+            limit,
+            keywords,
+        } => cmd::list(&mut buffer, &dir, keywords, limit, min_score),
+        cmd::Command::Edit { path } => Ok(()),
+        cmd::Command::Delete { path } => Ok(()),
     }
 }
 

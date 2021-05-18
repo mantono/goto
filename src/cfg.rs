@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
-use crate::tag::Tag;
+use crate::{cmd, tag::Tag};
 use termcolor::ColorChoice;
 
 #[derive(Debug, StructOpt)]
@@ -28,7 +28,7 @@ pub struct Config {
     #[structopt(long = "colors", default_value = "auto")]
     colors: Flag,
     #[structopt(subcommand)]
-    pub cmd: Command,
+    pub cmd: cmd::Command,
 }
 
 impl Config {
@@ -59,37 +59,4 @@ impl FromStr for Flag {
             _ => Err(format!("Unrecognized option {}", s)),
         }
     }
-}
-
-#[derive(Debug, StructOpt)]
-pub enum Command {
-    /// Add bookmark with URL
-    ///
-    /// Add bookmark with URL and optionally some tags
-    Add { url: String, tags: Vec<Tag> },
-    /// Open bookmark in browser
-    ///
-    /// Open a bookmark in the browser that is matching the given keywords. If several bookmarks
-    /// match the keywords, the best matching bookmark will be selected. If no bookmark is matching
-    /// the keywords, the keywords will be directed to a search query in a search engine.
-    Open { keywords: Vec<Tag> },
-    /// Select from a list of bookmarks
-    ///
-    /// Select from a list of bookmarks where at least one keyword matches the domain or a tag of
-    /// each bookmark in the list.
-    Select {
-        #[structopt(short = "n", long, default_value = "10")]
-        limit: usize,
-        keywords: Vec<Tag>,
-    },
-    /// List bookmarks
-    ///
-    /// List bookmarks matching the keywords, but do not open any bookmark.
-    List { keywords: Vec<Tag> },
-    /// Edit a bookmark
-    ///
-    /// Edit a bookmark in your editor of choice
-    Edit { path: PathBuf },
-    /// Delete bookmark
-    Delete { path: PathBuf },
 }

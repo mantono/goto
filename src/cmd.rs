@@ -22,12 +22,18 @@ pub enum Command {
     /// Open a bookmark in the browser that is matching the given keywords. If several bookmarks
     /// match the keywords, the best matching bookmark will be selected. If no bookmark is matching
     /// the keywords, the keywords will be directed to a search query in a search engine.
-    Open { keywords: Vec<Tag> },
+    Open {
+        #[structopt(short = "s", long = "score", default_value = "0.05")]
+        min_score: f64,
+        keywords: Vec<Tag>,
+    },
     /// Select from a list of bookmarks
     ///
     /// Select from a list of bookmarks where at least one keyword matches the domain or a tag of
     /// each bookmark in the list.
     Select {
+        #[structopt(short = "s", long = "score", default_value = "0.05")]
+        min_score: f64,
         #[structopt(short = "n", long, default_value = "10")]
         limit: usize,
         keywords: Vec<Tag>,
@@ -35,7 +41,13 @@ pub enum Command {
     /// List bookmarks
     ///
     /// List bookmarks matching the keywords, but do not open any bookmark.
-    List { keywords: Vec<Tag> },
+    List {
+        #[structopt(short = "s", long = "score", default_value = "0.05")]
+        min_score: f64,
+        #[structopt(short = "n", long, default_value = "10")]
+        limit: usize,
+        keywords: Vec<Tag>,
+    },
     /// Edit a bookmark
     ///
     /// Edit a bookmark in your editor of choice
@@ -48,24 +60,30 @@ lazy_static! {
     static ref PROTOCOL_PREFIX: Regex = regex::Regex::new("^https?://").unwrap();
 }
 
-pub fn open(buffer: &mut impl Write, dir: &PathBuf, keywords: Vec<Tag>) -> Result<(), Error> {
+fn filter(dir: &PathBuf, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookmark)> {
     let keywords: HashSet<Tag> = HashSet::from_iter(keywords);
-    let bkm: Option<Bookmark> = walkdir::WalkDir::new(dir)
+    walkdir::WalkDir::new(dir)
         .into_iter()
         .filter_map(|f| f.ok())
         .filter_map(|f| Bookmark::from_file(&f.into_path()))
         .map(|bkm| (score(&bkm.terms(), &keywords), bkm))
         .inspect(|(score, bkm)| println!("{}, {}", score, bkm))
-        .filter(|(score, _)| score > &0.0)
+        .filter(|(score, _)| score >= &min_score)
         .sorted_unstable_by(|b0, b1| b0.0.partial_cmp(&b1.0).unwrap().reverse())
-        .map(|(_, bkm)| bkm)
-        .next();
+        .collect_vec()
+}
 
-    let url: Url = match bkm {
-        Some(bookmark) => bookmark.url(),
+pub fn open(
+    buffer: &mut impl Write,
+    dir: &PathBuf,
+    keywords: Vec<Tag>,
+    min_score: f64,
+) -> Result<(), Error> {
+    let query: String = search_query(&keywords);
+    let bookmarks: Vec<(f64, Bookmark)> = filter(dir, keywords, min_score);
+    let url: Url = match bookmarks.first() {
+        Some((_, bookmark)) => bookmark.url(),
         None => {
-            let query: String = keywords.iter().map(|t| t.to_string()).join("+");
-            let query = format!("https://duckduckgo.com/?q={}", query);
             writeln!(
                 buffer,
                 "No bookmark found for keyword(s), searching online instead"
@@ -76,6 +94,27 @@ pub fn open(buffer: &mut impl Write, dir: &PathBuf, keywords: Vec<Tag>) -> Resul
     };
     open::that(url.to_string()).unwrap();
 
+    Ok(())
+}
+
+fn search_query(terms: &Vec<Tag>) -> String {
+    let query: String = terms.iter().map(|t| t.to_string()).join("+");
+    format!("https://duckduckgo.com/?q={}", query)
+}
+
+pub fn list(
+    buffer: &mut impl Write,
+    dir: &PathBuf,
+    keywords: Vec<Tag>,
+    limit: usize,
+    min_score: f64,
+) -> Result<(), Error> {
+    filter(dir, keywords, min_score)
+        .iter()
+        .take(limit)
+        .for_each(|(score, bkm)| {
+            writeln!(buffer, "{}: {:?} - {:?}", score, bkm.domain(), bkm.tags()).unwrap();
+        });
     Ok(())
 }
 
