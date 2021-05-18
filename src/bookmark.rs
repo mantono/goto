@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::hash::Hash;
 use std::{collections::HashSet, convert::TryInto, fmt::Display, path::PathBuf};
@@ -6,7 +7,7 @@ use url::Url;
 
 use crate::tag::Tag;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct Bookmark {
     url: Url,
     tags: HashSet<Tag>,
@@ -33,16 +34,20 @@ impl Bookmark {
             None => None,
         };
 
-        if extension != Some("bkm") {
+        if extension != Some("json") {
             return None;
         }
 
-        let content: String = std::fs::read_to_string(path).ok()?;
-        let content: Vec<&str> = content.lines().take(2).collect_vec();
-        let url: &str = content.first()?;
-        let tags: HashSet<Tag> = Tag::new_set(*content.last()?);
+        let bytes = std::fs::read(path).ok()?;
+        Self::from_bytes(&bytes)
+    }
 
-        Bookmark::new(url, tags).ok()
+    pub fn from_str(input: &str) -> Option<Self> {
+        serde_json::from_str(input).ok()
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        serde_json::from_slice(bytes).ok()
     }
 
     pub fn url(&self) -> Url {
@@ -73,7 +78,7 @@ impl Bookmark {
     pub fn rel_path(&self) -> PathBuf {
         let domain = self.domain().unwrap_or("").to_string();
         let mut hash = hash(&self.url.to_string());
-        hash.push_str(".bkm");
+        hash.push_str(".json");
         let path: String = [domain, hash].join("/");
         path.into()
     }

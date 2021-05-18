@@ -56,6 +56,7 @@ fn main() -> Result<(), Error> {
 pub enum Error {
     NotExistingFile,
     Formatting,
+    Serialization,
 }
 
 impl From<std::io::Error> for Error {
@@ -69,6 +70,13 @@ impl From<std::fmt::Error> for Error {
     fn from(e: std::fmt::Error) -> Self {
         log::error!("{}", e.to_string());
         Self::Formatting
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(e: serde_json::Error) -> Self {
+        log::error!("{}", e.to_string());
+        Self::Serialization
     }
 }
 

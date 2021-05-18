@@ -29,8 +29,7 @@ pub enum Command {
     },
     /// Select from a list of bookmarks
     ///
-    /// Select from a list of bookmarks where at least one keyword matches the domain or a tag of
-    /// each bookmark in the list.
+    /// Select from a list of bookmarks
     Select {
         #[structopt(short = "s", long = "score", default_value = "0.05")]
         min_score: f64,
@@ -118,6 +117,22 @@ pub fn list(
     Ok(())
 }
 
+pub fn select(
+    buffer: &mut impl Write,
+    dir: &PathBuf,
+    keywords: Vec<Tag>,
+    limit: usize,
+    min_score: f64,
+) -> Result<(), Error> {
+    filter(dir, keywords, min_score)
+        .iter()
+        .take(limit)
+        .for_each(|(score, bkm)| {
+            writeln!(buffer, "{}: {:?} - {:?}", score, bkm.domain(), bkm.tags()).unwrap();
+        });
+    Ok(())
+}
+
 fn score(v0: &HashSet<Tag>, v1: &HashSet<Tag>) -> f64 {
     let union: Vec<&Tag> = v0.union(&v1).collect();
     let intersection: Vec<&Tag> = v0.intersection(&v1).collect();
@@ -165,7 +180,8 @@ pub fn add(
         bkm
     };
 
-    std::fs::write(full_path, bkm.to_string())?;
+    let json: String = serde_json::to_string(&bkm)?;
+    std::fs::write(full_path, json)?;
 
     writeln!(buffer, "{}", bkm)?;
 

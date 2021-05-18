@@ -1,7 +1,7 @@
-use std::collections::HashSet;
-
 use lazy_static::lazy_static;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::{fmt::Display, hash::Hash, str::FromStr};
 
 lazy_static! {
@@ -9,7 +9,7 @@ lazy_static! {
     static ref DISCARD: Regex = Regex::new(r#"[,\s"\\]+"#).unwrap();
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Serialize, Deserialize)]
 pub struct Tag(String);
 
 impl Tag {
