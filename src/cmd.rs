@@ -3,12 +3,12 @@ use crate::{
     tag::Tag,
     Error,
 };
-use dialoguer::Input;
+use dialoguer::{console::Term, Editor, Input, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::iter::FromIterator;
-use std::{collections::HashSet, io::Write, path::PathBuf};
+use std::{collections::HashSet, io::Write, path::PathBuf, str::FromStr};
+use std::{iter::FromIterator, process::ExitStatus};
 use url::Url;
 
 #[derive(Debug, StructOpt)]
@@ -66,7 +66,6 @@ fn filter(dir: &PathBuf, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookma
         .filter_map(|f| f.ok())
         .filter_map(|f| Bookmark::from_file(&f.into_path()))
         .map(|bkm| (score(&bkm.terms(), &keywords), bkm))
-        .inspect(|(score, bkm)| println!("{}, {}", score, bkm))
         .filter(|(score, _)| score >= &min_score)
         .sorted_unstable_by(|b0, b1| b0.0.partial_cmp(&b1.0).unwrap().reverse())
         .collect_vec()
@@ -124,12 +123,69 @@ pub fn select(
     limit: usize,
     min_score: f64,
 ) -> Result<(), Error> {
-    filter(dir, keywords, min_score)
-        .iter()
+    let bookmarks: Vec<Bookmark> = filter(dir, keywords, min_score)
+        .into_iter()
         .take(limit)
-        .for_each(|(score, bkm)| {
-            writeln!(buffer, "{}: {:?} - {:?}", score, bkm.domain(), bkm.tags()).unwrap();
-        });
+        .map(|(_, bkm)| bkm)
+        .collect();
+
+    let selection: Option<usize> = Select::new()
+        .with_prompt("Select bookmark")
+        .default(0)
+        .items(&bookmarks)
+        .interact_on_opt(&Term::stdout())?;
+
+    match selection {
+        Some(i) => select_action(buffer, dir, bookmarks[i].clone()),
+        None => Ok(()),
+    }
+}
+
+fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> Result<(), Error> {
+    let actions = vec!["open", "edit tags", "edit URL", "delete", "exit"];
+    let selection: Option<usize> = Select::new()
+        .with_prompt("Select action")
+        .default(0)
+        .items(&actions)
+        .interact_on_opt(&Term::stdout())?;
+
+    match selection {
+        Some(0) => {
+            open::that(bookmark.url().to_string())?;
+        }
+        Some(1) => {
+            let tags: String = bookmark.tags().iter().join(" ");
+            let tags: String = Input::new()
+                .with_prompt("Tags")
+                .with_initial_text(tags)
+                .interact_text_on(&Term::stdout())?;
+
+            println!("New tags: {}", tags);
+            let tags = Tag::new_set(tags);
+            let bookmark = Bookmark::new(bookmark.url(), tags).unwrap();
+            save_bookmark(dir, bookmark, false)?;
+        }
+        Some(2) => {
+            let url: String = bookmark.url().to_string();
+            let url: String = Input::new()
+                .with_prompt("URL")
+                .with_initial_text(url)
+                .interact_text_on(&Term::stdout())?;
+
+            let url = url.trim();
+
+            let new_bookmark = Bookmark::new(url, bookmark.tags().clone()).unwrap();
+            save_bookmark(dir, new_bookmark, true)?;
+            delete_bookmark(dir, &bookmark)?;
+            println!("New url {}", url);
+        }
+        Some(3) => {
+            delete_bookmark(dir, &bookmark)?;
+            let url: String = bookmark.url().to_string();
+            println!("Deleted bookmark {}", url);
+        }
+        _ => {}
+    };
     Ok(())
 }
 
@@ -158,20 +214,27 @@ pub fn add(
         .iter()
         .map(|t| t.value())
         .collect::<Vec<String>>()
-        .join(", ");
+        .join(" ");
 
     let tags: String = Input::new()
         .with_prompt("Tags")
-        .default(default)
+        .with_initial_text(default)
         .interact_text()?;
 
     let tags: HashSet<Tag> = Tag::new_set(tags);
     let bkm = bookmark::Bookmark::new(url, tags).unwrap();
+    let bkm: Bookmark = save_bookmark(dir, bkm, true)?;
 
+    writeln!(buffer, "{}", bkm)?;
+
+    Ok(())
+}
+
+fn save_bookmark(dir: &PathBuf, bkm: Bookmark, merge: bool) -> Result<Bookmark, std::io::Error> {
     let full_path = dir.join(bkm.rel_path());
     std::fs::create_dir_all(full_path.parent().unwrap())?;
 
-    let bkm: Bookmark = if full_path.exists() {
+    let bkm: Bookmark = if full_path.exists() && merge {
         match Bookmark::from_file(&full_path) {
             Some(prior_bkm) => bkm.merge(prior_bkm),
             None => bkm,
@@ -183,7 +246,10 @@ pub fn add(
     let json: String = serde_json::to_string(&bkm)?;
     std::fs::write(full_path, json)?;
 
-    writeln!(buffer, "{}", bkm)?;
+    Ok(bkm)
+}
 
-    Ok(())
+fn delete_bookmark(dir: &PathBuf, bkm: &Bookmark) -> Result<(), std::io::Error> {
+    let full_path = dir.join(bkm.rel_path());
+    std::fs::remove_file(full_path)
 }

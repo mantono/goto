@@ -7,7 +7,7 @@ use url::Url;
 
 use crate::tag::Tag;
 
-#[derive(PartialEq, Eq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Bookmark {
     url: Url,
     tags: HashSet<Tag>,
@@ -50,6 +50,10 @@ impl Bookmark {
         serde_json::from_slice(bytes).ok()
     }
 
+    fn id(&self) -> String {
+        hash(&self.url.to_string())
+    }
+
     pub fn url(&self) -> Url {
         self.url.clone()
     }
@@ -77,7 +81,7 @@ impl Bookmark {
 
     pub fn rel_path(&self) -> PathBuf {
         let domain = self.domain().unwrap_or("").to_string();
-        let mut hash = hash(&self.url.to_string());
+        let mut hash = self.id();
         hash.push_str(".json");
         let path: String = [domain, hash].join("/");
         path.into()
@@ -101,9 +105,8 @@ impl Bookmark {
 
 impl Display for Bookmark {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}\n", &self.url)?;
         let tags: String = self.tags.iter().join(" ");
-        write!(f, "{}\n", &tags)?;
+        write!(f, "{} - {}", &self.url, tags)?;
         Ok(())
     }
 }

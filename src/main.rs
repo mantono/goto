@@ -41,7 +41,7 @@ fn main() -> Result<(), Error> {
             min_score,
             limit,
             keywords,
-        } => Ok(()),
+        } => cmd::select(&mut buffer, &dir, keywords, limit, min_score),
         cmd::Command::List {
             min_score,
             limit,
