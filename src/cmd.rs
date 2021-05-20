@@ -111,7 +111,7 @@ pub fn list(
         .iter()
         .take(limit)
         .for_each(|(score, bkm)| {
-            writeln!(buffer, "{}: {:?} - {:?}", score, bkm.domain(), bkm.tags()).unwrap();
+            writeln!(buffer, "{:.2} │ {}", score, bkm).unwrap();
         });
     Ok(())
 }
@@ -210,6 +210,10 @@ pub fn add(
         format!("https://{}", url)
     };
     let url = url::Url::parse(&url).unwrap();
+
+    //let rt = Runtime::new().unwrap();
+    let title: Option<String> = None;
+
     let default: String = tags
         .iter()
         .map(|t| t.value())
@@ -222,7 +226,7 @@ pub fn add(
         .interact_text()?;
 
     let tags: HashSet<Tag> = Tag::new_set(tags);
-    let bkm = bookmark::Bookmark::new(url, tags).unwrap();
+    let bkm = bookmark::Bookmark::new(url, title, tags).unwrap();
     let bkm: Bookmark = save_bookmark(dir, bkm, true)?;
 
     writeln!(buffer, "{}", bkm)?;

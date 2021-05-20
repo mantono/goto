@@ -10,16 +10,21 @@ use crate::tag::Tag;
 #[derive(PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Bookmark {
     url: Url,
+    title: Option<String>,
     tags: HashSet<Tag>,
 }
 
 impl Bookmark {
-    pub fn new<T: TryInto<Url>>(url: T, tags: HashSet<Tag>) -> Result<Self, Error> {
+    pub fn new<T: TryInto<Url>>(
+        url: T,
+        title: Option<String>,
+        tags: HashSet<Tag>,
+    ) -> Result<Self, Error> {
         let url: Url = match url.try_into() {
             Ok(url) => url,
             Err(_) => return Err(Error::InvalidUrl),
         };
-        let bm = Bookmark { url, tags };
+        let bm = Bookmark { url, title, tags };
 
         return Ok(bm);
     }
