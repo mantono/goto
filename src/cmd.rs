@@ -162,7 +162,7 @@ fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> 
 
             println!("New tags: {}", tags);
             let tags = Tag::new_set(tags);
-            let bookmark = Bookmark::new(bookmark.url(), tags).unwrap();
+            let bookmark = Bookmark::new(bookmark.url(), None, tags).unwrap();
             save_bookmark(dir, bookmark, false)?;
         }
         Some(2) => {
@@ -174,7 +174,7 @@ fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> 
 
             let url = url.trim();
 
-            let new_bookmark = Bookmark::new(url, bookmark.tags().clone()).unwrap();
+            let new_bookmark = Bookmark::new(url, None, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, new_bookmark, true)?;
             delete_bookmark(dir, &bookmark)?;
             println!("New url {}", url);
