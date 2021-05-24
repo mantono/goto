@@ -142,7 +142,14 @@ pub fn select(
 }
 
 fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> Result<(), Error> {
-    let actions = vec!["open", "edit tags", "edit URL", "delete", "exit"];
+    let actions = vec![
+        "open",
+        "edit title",
+        "edit tags",
+        "edit URL",
+        "delete",
+        "exit",
+    ];
     let selection: Option<usize> = Select::new()
         .with_prompt("Select action")
         .default(0)
@@ -154,6 +161,18 @@ fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> 
             open::that(bookmark.url().to_string())?;
         }
         Some(1) => {
+            let title: String = bookmark.title().unwrap_or_default();
+            let title: String = Input::new()
+                .with_prompt("Title")
+                .with_initial_text(title)
+                .interact_text_on(&Term::stdout())?;
+            println!("New title: {}", title);
+            let bookmark =
+                Bookmark::new(bookmark.url(), Some(title), bookmark.tags().clone()).unwrap();
+
+            save_bookmark(dir, bookmark, true)?;
+        }
+        Some(2) => {
             let tags: String = bookmark.tags().iter().join(" ");
             let tags: String = Input::new()
                 .with_prompt("Tags")
@@ -165,7 +184,7 @@ fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> 
             let bookmark = Bookmark::new(bookmark.url(), None, tags).unwrap();
             save_bookmark(dir, bookmark, false)?;
         }
-        Some(2) => {
+        Some(3) => {
             let url: String = bookmark.url().to_string();
             let url: String = Input::new()
                 .with_prompt("URL")
@@ -179,7 +198,7 @@ fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> 
             delete_bookmark(dir, &bookmark)?;
             println!("New url {}", url);
         }
-        Some(3) => {
+        Some(4) => {
             delete_bookmark(dir, &bookmark)?;
             let url: String = bookmark.url().to_string();
             println!("Deleted bookmark {}", url);

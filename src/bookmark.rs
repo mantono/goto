@@ -72,6 +72,10 @@ impl Bookmark {
         parts.iter().nth_back(1).map(|r| *r)
     }
 
+    pub fn title(&self) -> Option<String> {
+        self.title.clone()
+    }
+
     pub fn tags(&self) -> &HashSet<Tag> {
         &self.tags
     }
