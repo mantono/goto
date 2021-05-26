@@ -1,5 +1,6 @@
 use crate::{
     bookmark::{self, Bookmark},
+    io,
     tag::Tag,
     Error,
 };
@@ -169,42 +170,21 @@ fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> 
             open::that(bookmark.url().to_string())?;
         }
         Some(1) => {
-            let title: String = bookmark.title().unwrap_or_default();
-            let title: String = Input::new()
-                .with_prompt("Title")
-                .with_initial_text(title)
-                .interact_text_on(&Term::stdout())?;
-            println!("New title: {}", title);
-            let bookmark =
-                Bookmark::new(bookmark.url(), Some(title), bookmark.tags().clone()).unwrap();
-
+            let title: Option<String> = bookmark.title();
+            let title: Option<String> = io::read_title(title);
+            let bookmark = Bookmark::new(bookmark.url(), title, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, bookmark, true)?;
         }
         Some(2) => {
-            let tags: String = bookmark.tags().iter().join(" ");
-            let tags: String = Input::new()
-                .with_prompt("Tags")
-                .with_initial_text(tags)
-                .interact_text_on(&Term::stdout())?;
-
-            println!("New tags: {}", tags);
-            let tags = Tag::new_set(tags);
+            let tags = io::read_tags(bookmark.tags().clone());
             let bookmark = Bookmark::new(bookmark.url(), None, tags).unwrap();
             save_bookmark(dir, bookmark, false)?;
         }
         Some(3) => {
-            let url: String = bookmark.url().to_string();
-            let url: String = Input::new()
-                .with_prompt("URL")
-                .with_initial_text(url)
-                .interact_text_on(&Term::stdout())?;
-
-            let url = url.trim();
-
+            let url = io::read_url(Some(bookmark.url()));
             let new_bookmark = Bookmark::new(url, None, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, new_bookmark, true)?;
             delete_bookmark(dir, &bookmark)?;
-            println!("New url {}", url);
         }
         Some(4) => {
             delete_bookmark(dir, &bookmark)?;
