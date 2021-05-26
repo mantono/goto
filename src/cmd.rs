@@ -7,7 +7,13 @@ use dialoguer::{console::Term, Editor, Input, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{collections::HashSet, io::Write, path::PathBuf, str::FromStr};
+use std::{
+    collections::HashSet,
+    io::Write,
+    path::PathBuf,
+    str::FromStr,
+    thread::{self, JoinHandle, Thread},
+};
 use std::{iter::FromIterator, process::ExitStatus};
 use url::Url;
 
@@ -57,6 +63,8 @@ pub enum Command {
 
 lazy_static! {
     static ref PROTOCOL_PREFIX: Regex = regex::Regex::new("^https?://").unwrap();
+    static ref TITLE: Regex =
+        regex::Regex::new(r"<(title|TITLE)>\s?.*\s?</(title|TITLE)>").unwrap();
 }
 
 fn filter(dir: &PathBuf, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookmark)> {
@@ -229,9 +237,7 @@ pub fn add(
         format!("https://{}", url)
     };
     let url = url::Url::parse(&url).unwrap();
-
-    //let rt = Runtime::new().unwrap();
-    let title: Option<String> = None;
+    let title: JoinHandle<Option<String>> = read_title(&url);
 
     let default: String = tags
         .iter()
@@ -241,8 +247,17 @@ pub fn add(
 
     let tags: String = Input::new()
         .with_prompt("Tags")
+        .allow_empty(true)
         .with_initial_text(default)
-        .interact_text()?;
+        .interact()?;
+
+    let title: String = title.join().unwrap_or_default().unwrap_or_default();
+    let title: Option<String> = Input::new()
+        .with_prompt("Title")
+        .allow_empty(true)
+        .with_initial_text(title)
+        .interact()
+        .ok();
 
     let tags: HashSet<Tag> = Tag::new_set(tags);
     let bkm = bookmark::Bookmark::new(url, title, tags).unwrap();
@@ -251,6 +266,23 @@ pub fn add(
     writeln!(buffer, "{}", bkm)?;
 
     Ok(())
+}
+
+fn read_title(url: &Url) -> JoinHandle<Option<String>> {
+    let url = url.clone();
+    thread::spawn(move || {
+        let body: String = reqwest::blocking::get(url).unwrap().text().unwrap();
+        let title: String = TITLE.find(&body).map(|title| title.as_str().to_string())?;
+        let title = title
+            .chars()
+            .skip(7)
+            .take_while(|c| *c != '<')
+            .collect::<String>()
+            .trim()
+            .to_string();
+
+        Some(title)
+    })
 }
 
 fn save_bookmark(dir: &PathBuf, bkm: Bookmark, merge: bool) -> Result<Bookmark, std::io::Error> {
