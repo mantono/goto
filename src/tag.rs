@@ -1,7 +1,9 @@
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
+use reqwest::header::Iter;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::{collections::HashSet, thread::JoinHandle};
 use std::{fmt::Display, hash::Hash, str::FromStr};
 
 lazy_static! {
@@ -82,5 +84,30 @@ impl Hash for Tag {
 impl Ord for Tag {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)
+    }
+}
+
+pub trait TagHolder {
+    fn join(&self) -> String;
+    fn tags(self) -> HashSet<Tag>;
+}
+
+impl TagHolder for HashSet<Tag> {
+    fn join(&self) -> String {
+        self.iter().join(" ")
+    }
+
+    fn tags(self) -> HashSet<Tag> {
+        self
+    }
+}
+
+impl TagHolder for Vec<Tag> {
+    fn join(&self) -> String {
+        self.iter().join(" ")
+    }
+
+    fn tags(self) -> HashSet<Tag> {
+        self.into_iter().collect()
     }
 }

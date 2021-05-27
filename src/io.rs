@@ -1,7 +1,7 @@
 use std::io::Result;
 use std::{collections::HashSet, convert::TryInto};
 
-use crate::tag::Tag;
+use crate::tag::{Tag, TagHolder};
 use dialoguer::{console::Term, Input};
 use itertools::Itertools;
 use url::Url;
@@ -15,16 +15,15 @@ pub fn read_title(default: Option<String>) -> Option<String> {
         .ok()
 }
 
-pub fn read_tags(default: HashSet<Tag>) -> HashSet<Tag> {
-    let tags: String = default.iter().join(" ");
+pub fn read_tags(default: impl TagHolder) -> HashSet<Tag> {
     let tags: Result<String> = Input::new()
         .with_prompt("Tags")
-        .with_initial_text(tags)
+        .with_initial_text(default.join())
         .interact_text_on(&Term::stdout());
 
     match tags {
         Ok(tags) => Tag::new_set(tags),
-        Err(_) => default,
+        Err(_) => default.tags(),
     }
 }
 

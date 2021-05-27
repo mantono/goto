@@ -1,7 +1,7 @@
 use crate::{
     bookmark::{self, Bookmark},
-    io,
-    tag::Tag,
+    io::{self, read_title},
+    tag::{Tag, TagHolder},
     Error,
 };
 use dialoguer::{console::Term, Editor, Input, Select};
@@ -209,7 +209,7 @@ pub fn add(
     buffer: &mut impl Write,
     dir: &PathBuf,
     url: String,
-    tags: Vec<Tag>,
+    default: impl TagHolder,
 ) -> Result<(), Error> {
     let url: String = if PROTOCOL_PREFIX.is_match(&url) {
         url
