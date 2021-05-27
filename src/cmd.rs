@@ -44,22 +44,6 @@ pub enum Command {
         limit: usize,
         keywords: Vec<Tag>,
     },
-    /// List bookmarks
-    ///
-    /// List bookmarks matching the keywords, but do not open any bookmark.
-    List {
-        #[structopt(short = "s", long = "score", default_value = "0.05")]
-        min_score: f64,
-        #[structopt(short = "n", long, default_value = "10")]
-        limit: usize,
-        keywords: Vec<Tag>,
-    },
-    /// Edit a bookmark
-    ///
-    /// Edit a bookmark in your editor of choice
-    Edit { path: PathBuf },
-    /// Delete bookmark
-    Delete { path: PathBuf },
 }
 
 lazy_static! {

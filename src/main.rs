@@ -43,13 +43,6 @@ fn main() -> Result<(), Error> {
             limit,
             keywords,
         } => cmd::select(&mut buffer, &dir, keywords, limit, min_score),
-        cmd::Command::List {
-            min_score,
-            limit,
-            keywords,
-        } => cmd::list(&mut buffer, &dir, keywords, limit, min_score),
-        cmd::Command::Edit { path } => Ok(()),
-        cmd::Command::Delete { path } => Ok(()),
     }
 }
 
