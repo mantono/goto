@@ -54,6 +54,7 @@ lazy_static! {
 
 fn filter(dir: &PathBuf, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookmark)> {
     let keywords: HashSet<Tag> = HashSet::from_iter(keywords);
+    let min_score: f64 = if keywords.is_empty() { 0.0 } else { min_score };
     walkdir::WalkDir::new(dir)
         .into_iter()
         .filter_map(|f| f.ok())

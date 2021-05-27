@@ -3,7 +3,6 @@ use std::{collections::HashSet, convert::TryInto};
 
 use crate::tag::{Tag, TagHolder};
 use dialoguer::{console::Term, Input};
-use itertools::Itertools;
 use url::Url;
 
 pub fn read_title(default: Option<String>) -> Option<String> {
@@ -18,6 +17,7 @@ pub fn read_title(default: Option<String>) -> Option<String> {
 pub fn read_tags(default: impl TagHolder) -> HashSet<Tag> {
     let tags: Result<String> = Input::new()
         .with_prompt("Tags")
+        .allow_empty(true)
         .with_initial_text(default.join())
         .interact_text_on(&Term::stdout());
 
