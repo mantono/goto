@@ -94,22 +94,6 @@ fn search_query(terms: &Vec<Tag>) -> String {
     format!("https://duckduckgo.com/?q={}", query)
 }
 
-pub fn list(
-    buffer: &mut impl Write,
-    dir: &PathBuf,
-    keywords: Vec<Tag>,
-    limit: usize,
-    min_score: f64,
-) -> Result<(), Error> {
-    filter(dir, keywords, min_score)
-        .iter()
-        .take(limit)
-        .for_each(|(score, bkm)| {
-            writeln!(buffer, "{:.2} │ {}", score, bkm).unwrap();
-        });
-    Ok(())
-}
-
 pub fn select(
     buffer: &mut impl Write,
     dir: &PathBuf,
