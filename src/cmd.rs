@@ -170,7 +170,10 @@ fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> 
             open::that(bookmark.url().to_string())?;
         }
         Some(1) => {
-            let title: Option<String> = bookmark.title();
+            let title: Option<String> = match bookmark.title() {
+                Some(title) => Some(title),
+                None => load_title(&bookmark.url()).join().unwrap(),
+            };
             let title: Option<String> = io::read_title(title);
             let bookmark = Bookmark::new(bookmark.url(), title, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, bookmark, true)?;
@@ -217,29 +220,11 @@ pub fn add(
         format!("https://{}", url)
     };
     let url = url::Url::parse(&url).unwrap();
-    let title: JoinHandle<Option<String>> = read_title(&url);
+    let title: JoinHandle<Option<String>> = load_title(&url);
+    let tags: HashSet<Tag> = io::read_tags(default);
+    let loaded_title: Option<String> = title.join().unwrap_or_default();
+    let title: Option<String> = io::read_title(loaded_title);
 
-    let default: String = tags
-        .iter()
-        .map(|t| t.value())
-        .collect::<Vec<String>>()
-        .join(" ");
-
-    let tags: String = Input::new()
-        .with_prompt("Tags")
-        .allow_empty(true)
-        .with_initial_text(default)
-        .interact()?;
-
-    let title: String = title.join().unwrap_or_default().unwrap_or_default();
-    let title: Option<String> = Input::new()
-        .with_prompt("Title")
-        .allow_empty(true)
-        .with_initial_text(title)
-        .interact()
-        .ok();
-
-    let tags: HashSet<Tag> = Tag::new_set(tags);
     let bkm = bookmark::Bookmark::new(url, title, tags).unwrap();
     let bkm: Bookmark = save_bookmark(dir, bkm, true)?;
 
@@ -248,7 +233,7 @@ pub fn add(
     Ok(())
 }
 
-fn read_title(url: &Url) -> JoinHandle<Option<String>> {
+fn load_title(url: &Url) -> JoinHandle<Option<String>> {
     let url = url.clone();
     thread::spawn(move || {
         let body: String = reqwest::blocking::get(url).unwrap().text().unwrap();
