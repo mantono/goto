@@ -366,7 +366,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "structopt",
- "termcolor",
  "url",
  "walkdir",
 ]

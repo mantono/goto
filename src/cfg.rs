@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::cmd;
-use termcolor::ColorChoice;
+use dialoguer::theme::{ColorfulTheme, SimpleTheme, Theme};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "goto", about = "Web bookmarks utility")]
@@ -32,11 +32,11 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn colors(&self) -> ColorChoice {
+    pub fn theme(&self) -> Box<dyn Theme> {
         match self.colors {
-            Flag::True => ColorChoice::Always,
-            Flag::False => ColorChoice::Never,
-            Flag::Auto => ColorChoice::Auto,
+            Flag::True => Box::new(ColorfulTheme::default()),
+            Flag::False => Box::new(SimpleTheme),
+            Flag::Auto => Box::new(ColorfulTheme::default()),
         }
     }
 }

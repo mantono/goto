@@ -4,7 +4,7 @@ use crate::{
     tag::{Tag, TagHolder},
     Error,
 };
-use dialoguer::{console::Term, Select};
+use dialoguer::{console::Term, theme::Theme, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -97,6 +97,7 @@ pub fn select(
     keywords: Vec<Tag>,
     limit: usize,
     min_score: f64,
+    theme: &Box<dyn Theme>,
 ) -> Result<(), Error> {
     let bookmarks: Vec<Bookmark> = filter(dir, keywords, min_score)
         .into_iter()
@@ -109,19 +110,24 @@ pub fn select(
         return Ok(());
     }
 
-    let selection: Option<usize> = Select::new()
+    let selection: Option<usize> = Select::with_theme(&**theme)
         .with_prompt("Select bookmark")
         .default(0)
         .items(&bookmarks)
         .interact_on_opt(&Term::stdout())?;
 
     match selection {
-        Some(i) => select_action(buffer, dir, bookmarks[i].clone()),
+        Some(i) => select_action(buffer, dir, bookmarks[i].clone(), theme),
         None => Ok(()),
     }
 }
 
-fn select_action(buffer: &mut impl Write, dir: &Path, bookmark: Bookmark) -> Result<(), Error> {
+fn select_action(
+    buffer: &mut impl Write,
+    dir: &Path,
+    bookmark: Bookmark,
+    theme: &Box<dyn Theme>,
+) -> Result<(), Error> {
     let actions = vec![
         "open",
         "edit title",
@@ -130,7 +136,7 @@ fn select_action(buffer: &mut impl Write, dir: &Path, bookmark: Bookmark) -> Res
         "delete",
         "exit",
     ];
-    let selection: Option<usize> = Select::new()
+    let selection: Option<usize> = Select::with_theme(&**theme)
         .with_prompt("Select action")
         .default(0)
         .items(&actions)
@@ -145,17 +151,17 @@ fn select_action(buffer: &mut impl Write, dir: &Path, bookmark: Bookmark) -> Res
                 Some(title) => Some(title),
                 None => load_title(&bookmark.url()).join().unwrap(),
             };
-            let title: Option<String> = io::read_title(title);
+            let title: Option<String> = io::read_title(title, theme);
             let bookmark = Bookmark::new(bookmark.url(), title, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, bookmark, true)?;
         }
         Some(2) => {
-            let tags = io::read_tags(bookmark.tags().clone());
+            let tags = io::read_tags(bookmark.tags().clone(), theme);
             let bookmark = Bookmark::new(bookmark.url(), None, tags).unwrap();
             save_bookmark(dir, bookmark, false)?;
         }
         Some(3) => {
-            let url = io::read_url(bookmark.url());
+            let url = io::read_url(bookmark.url(), theme);
             let new_bookmark = Bookmark::new(url, None, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, new_bookmark, true)?;
             delete_bookmark(dir, &bookmark)?;
@@ -184,6 +190,7 @@ pub fn add(
     dir: &Path,
     url: String,
     default: impl TagHolder,
+    theme: &Box<dyn Theme>,
 ) -> Result<(), Error> {
     let url: String = if PROTOCOL_PREFIX.is_match(&url) {
         url
@@ -192,9 +199,9 @@ pub fn add(
     };
     let url = url::Url::parse(&url).unwrap();
     let title: JoinHandle<Option<String>> = load_title(&url);
-    let tags: HashSet<Tag> = io::read_tags(default);
+    let tags: HashSet<Tag> = io::read_tags(default, &theme);
     let loaded_title: Option<String> = title.join().unwrap_or_default();
-    let title: Option<String> = io::read_title(loaded_title);
+    let title: Option<String> = io::read_title(loaded_title, &theme);
 
     let bkm = bookmark::Bookmark::new(url, title, tags).unwrap();
     let bkm: Bookmark = save_bookmark(dir, bkm, true)?;

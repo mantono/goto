@@ -5,7 +5,6 @@ mod bookmark;
 mod cfg;
 mod cmd;
 mod dbg;
-mod fmt;
 mod io;
 mod logger;
 mod tag;
@@ -13,6 +12,7 @@ mod tag;
 use crate::cfg::Config;
 use crate::dbg::dbg_info;
 use crate::logger::setup_logging;
+use dialoguer::theme::Theme;
 use std::io::Write;
 use std::{path::PathBuf, process};
 use structopt::StructOpt;
@@ -31,9 +31,10 @@ fn main() -> Result<(), Error> {
 
     let dir: PathBuf = dir().expect("Unable to find data directory");
     log::debug!("Using data directory {:?}", &dir);
+    let theme: Box<dyn Theme> = cfg.theme();
 
     match cfg.cmd {
-        cmd::Command::Add { url, tags } => cmd::add(&mut buffer, &dir, url, tags),
+        cmd::Command::Add { url, tags } => cmd::add(&mut buffer, &dir, url, tags, &theme),
         cmd::Command::Open {
             min_score,
             keywords,
@@ -42,7 +43,7 @@ fn main() -> Result<(), Error> {
             min_score,
             limit,
             keywords,
-        } => cmd::select(&mut buffer, &dir, keywords, limit, min_score),
+        } => cmd::select(&mut buffer, &dir, keywords, limit, min_score, &theme),
     }
 }
 
