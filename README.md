@@ -17,7 +17,7 @@ found, the keywords will be used in a seach query instead with a search engine o
 ```json
 {
     "url": "https://github.com/",
-    "title":" GitHub: Where the world builds software · GitHub",
+    "title": "GitHub: Where the world builds software · GitHub",
     "tags": [ "source", "vcs", "github", "git", "control", "community" ]
 }
 ```
