@@ -8,13 +8,13 @@ use dialoguer::{console::Term, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::iter::FromIterator;
 use std::{
     collections::HashSet,
     io::Write,
     path::PathBuf,
     thread::{self, JoinHandle},
 };
+use std::{iter::FromIterator, path::Path};
 use url::Url;
 
 #[derive(Debug, StructOpt)]
@@ -51,7 +51,7 @@ lazy_static! {
         regex::Regex::new(r"<(title|TITLE)>\s?.*\s?</(title|TITLE)>").unwrap();
 }
 
-fn filter(dir: &PathBuf, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookmark)> {
+fn filter(dir: &Path, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookmark)> {
     let keywords: HashSet<Tag> = HashSet::from_iter(keywords);
     let min_score: f64 = if keywords.is_empty() { 0.0 } else { min_score };
     walkdir::WalkDir::new(dir)
@@ -66,7 +66,7 @@ fn filter(dir: &PathBuf, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookma
 
 pub fn open(
     buffer: &mut impl Write,
-    dir: &PathBuf,
+    dir: &Path,
     keywords: Vec<Tag>,
     min_score: f64,
 ) -> Result<(), Error> {
@@ -94,7 +94,7 @@ fn search_query(terms: &Vec<Tag>) -> String {
 
 pub fn select(
     buffer: &mut impl Write,
-    dir: &PathBuf,
+    dir: &Path,
     keywords: Vec<Tag>,
     limit: usize,
     min_score: f64,
@@ -117,7 +117,7 @@ pub fn select(
     }
 }
 
-fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> Result<(), Error> {
+fn select_action(buffer: &mut impl Write, dir: &Path, bookmark: Bookmark) -> Result<(), Error> {
     let actions = vec![
         "open",
         "edit title",
@@ -177,7 +177,7 @@ fn score(v0: &HashSet<Tag>, v1: &HashSet<Tag>) -> f64 {
 
 pub fn add(
     buffer: &mut impl Write,
-    dir: &PathBuf,
+    dir: &Path,
     url: String,
     default: impl TagHolder,
 ) -> Result<(), Error> {
@@ -217,7 +217,7 @@ fn load_title(url: &Url) -> JoinHandle<Option<String>> {
     })
 }
 
-fn save_bookmark(dir: &PathBuf, bkm: Bookmark, merge: bool) -> Result<Bookmark, std::io::Error> {
+fn save_bookmark(dir: &Path, bkm: Bookmark, merge: bool) -> Result<Bookmark, std::io::Error> {
     let full_path = dir.join(bkm.rel_path());
     std::fs::create_dir_all(full_path.parent().unwrap())?;
 
@@ -236,7 +236,7 @@ fn save_bookmark(dir: &PathBuf, bkm: Bookmark, merge: bool) -> Result<Bookmark, 
     Ok(bkm)
 }
 
-fn delete_bookmark(dir: &PathBuf, bkm: &Bookmark) -> Result<(), std::io::Error> {
+fn delete_bookmark(dir: &Path, bkm: &Bookmark) -> Result<(), std::io::Error> {
     let full_path = dir.join(bkm.rel_path());
     std::fs::remove_file(full_path)
 }

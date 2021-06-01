@@ -1,8 +1,8 @@
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::hash::Hash;
 use std::{collections::HashSet, convert::TryInto, fmt::Display, path::PathBuf};
+use std::{hash::Hash, path::Path};
 use url::Url;
 
 use crate::tag::Tag;
@@ -29,7 +29,7 @@ impl Bookmark {
         return Ok(bm);
     }
 
-    pub fn from_file(path: &PathBuf) -> Option<Self> {
+    pub fn from_file(path: &Path) -> Option<Self> {
         if !path.exists() && !path.is_file() {
             return None;
         }
