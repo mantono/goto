@@ -27,20 +27,19 @@ pub fn read_tags(default: impl TagHolder) -> HashSet<Tag> {
     }
 }
 
-pub fn read_url(default: Option<Url>) -> Url {
-    let fallback = default.clone();
-    let initial = default
-        .map(|u| u.to_string())
-        .unwrap_or_else(|| "".to_string());
+pub fn read_url(default: Url) -> Url {
     let url: Option<String> = Input::new()
         .with_prompt("URL")
         .allow_empty(false)
-        .with_initial_text(initial)
+        .with_initial_text(default.to_string())
         .interact_text_on(&Term::stdout())
         .ok();
 
     match url {
-        Some(url) => url.trim().try_into().unwrap(),
-        None => fallback.unwrap(),
+        Some(url) => match url.trim().try_into() {
+            Ok(url) => url,
+            Err(_) => read_url(default),
+        },
+        None => default,
     }
 }

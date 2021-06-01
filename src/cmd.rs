@@ -155,7 +155,7 @@ fn select_action(buffer: &mut impl Write, dir: &Path, bookmark: Bookmark) -> Res
             save_bookmark(dir, bookmark, false)?;
         }
         Some(3) => {
-            let url = io::read_url(Some(bookmark.url()));
+            let url = io::read_url(bookmark.url());
             let new_bookmark = Bookmark::new(url, None, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, new_bookmark, true)?;
             delete_bookmark(dir, &bookmark)?;
