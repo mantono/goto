@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{collections::HashSet, convert::TryInto, fmt::Display, path::PathBuf};
+use std::{collections::HashSet, convert::TryInto, fmt::Display, path::PathBuf, str::FromStr};
 use std::{hash::Hash, path::Path};
 use url::Url;
 
@@ -43,16 +43,8 @@ impl Bookmark {
             return None;
         }
 
-        let bytes = std::fs::read(path).ok()?;
-        Self::from_bytes(&bytes)
-    }
-
-    pub fn from_str(input: &str) -> Option<Self> {
-        serde_json::from_str(input).ok()
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        serde_json::from_slice(bytes).ok()
+        let bytes: Vec<u8> = std::fs::read(path).ok()?;
+        bytes.as_slice().try_into().ok()
     }
 
     fn id(&self) -> String {
@@ -134,6 +126,22 @@ fn hash(input: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(input);
     format!("{:02x}", hasher.finalize())
+}
+
+impl FromStr for Bookmark {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
+}
+
+impl TryInto<Bookmark> for &[u8] {
+    type Error = serde_json::Error;
+
+    fn try_into(self) -> Result<Bookmark, Self::Error> {
+        serde_json::from_slice(self)
+    }
 }
 
 #[derive(Debug)]
