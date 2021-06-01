@@ -69,7 +69,7 @@ impl Bookmark {
 
     fn root_domain(&self) -> Option<&str> {
         let parts: Vec<&str> = self.domain()?.split(".").collect();
-        parts.iter().nth_back(1).map(|r| *r)
+        parts.iter().nth_back(1).copied()
     }
 
     pub fn title(&self) -> Option<String> {
@@ -100,12 +100,7 @@ impl Bookmark {
         if self.url != other.url {
             self
         } else {
-            let tags: HashSet<Tag> = self
-                .tags
-                .iter()
-                .chain(other.tags.iter())
-                .map(|tag| tag.clone())
-                .collect();
+            let tags: HashSet<Tag> = self.tags.iter().chain(other.tags.iter()).cloned().collect();
 
             Bookmark { tags, ..self }
         }
