@@ -26,7 +26,7 @@ impl Bookmark {
         };
         let bm = Bookmark { url, title, tags };
 
-        return Ok(bm);
+        Ok(bm)
     }
 
     pub fn from_file(path: &Path) -> Option<Self> {
