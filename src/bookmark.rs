@@ -83,7 +83,7 @@ impl Bookmark {
     pub fn terms(&self) -> HashSet<Tag> {
         let mut terms: HashSet<Tag> = self.tags.clone();
         if let Some(domain) = self.root_domain() {
-            Tag::new(domain).ok().and_then(|d| Some(terms.insert(d)));
+            Tag::new(domain).ok().map(|d| terms.insert(d));
         };
         terms
     }
