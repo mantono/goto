@@ -68,7 +68,7 @@ impl Bookmark {
     }
 
     fn root_domain(&self) -> Option<&str> {
-        let parts: Vec<&str> = self.domain()?.split(".").collect();
+        let parts: Vec<&str> = self.domain()?.split('.').collect();
         parts.iter().nth_back(1).copied()
     }
 
