@@ -10,7 +10,7 @@ lazy_static! {
     static ref DISCARD: Regex = Regex::new(r#"[,\s"\\]+"#).unwrap();
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Tag(String);
 
 impl Tag {
@@ -83,6 +83,12 @@ impl Hash for Tag {
 impl Ord for Tag {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)
+    }
+}
+
+impl PartialOrd for Tag {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.0.cmp(&other.0))
     }
 }
 
