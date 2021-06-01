@@ -1,6 +1,6 @@
-use std::{path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
-use crate::{cmd, tag::Tag};
+use crate::cmd;
 use termcolor::ColorChoice;
 
 #[derive(Debug, StructOpt)]

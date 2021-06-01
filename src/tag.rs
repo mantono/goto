@@ -1,9 +1,8 @@
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
-use reqwest::header::Iter;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, thread::JoinHandle};
+use std::collections::HashSet;
 use std::{fmt::Display, hash::Hash, str::FromStr};
 
 lazy_static! {

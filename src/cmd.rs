@@ -1,21 +1,20 @@
 use crate::{
     bookmark::{self, Bookmark},
-    io::{self, read_title},
+    io,
     tag::{Tag, TagHolder},
     Error,
 };
-use dialoguer::{console::Term, Editor, Input, Select};
+use dialoguer::{console::Term, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::iter::FromIterator;
 use std::{
     collections::HashSet,
     io::Write,
     path::PathBuf,
-    str::FromStr,
-    thread::{self, JoinHandle, Thread},
+    thread::{self, JoinHandle},
 };
-use std::{iter::FromIterator, process::ExitStatus};
 use url::Url;
 
 #[derive(Debug, StructOpt)]
@@ -79,8 +78,7 @@ pub fn open(
             writeln!(
                 buffer,
                 "No bookmark found for keyword(s), searching online instead"
-            )
-            .unwrap();
+            )?;
             Url::parse(&query).unwrap()
         }
     };
@@ -161,7 +159,7 @@ fn select_action(buffer: &mut impl Write, dir: &PathBuf, bookmark: Bookmark) -> 
         Some(4) => {
             delete_bookmark(dir, &bookmark)?;
             let url: String = bookmark.url().to_string();
-            println!("Deleted bookmark {}", url);
+            writeln!(buffer, "Deleted bookmark {}", url)?;
         }
         _ => {}
     };
