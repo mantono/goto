@@ -23,10 +23,6 @@ impl Tag {
         }
     }
 
-    pub fn value(&self) -> String {
-        self.0.clone()
-    }
-
     fn normalize(input: &str) -> String {
         DISCARD
             .replace_all(input, "")
