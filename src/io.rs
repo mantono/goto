@@ -29,7 +29,9 @@ pub fn read_tags(default: impl TagHolder) -> HashSet<Tag> {
 
 pub fn read_url(default: Option<Url>) -> Url {
     let fallback = default.clone();
-    let initial = default.map(|u| u.to_string()).unwrap_or("".to_string());
+    let initial = default
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| "".to_string());
     let url: Option<String> = Input::new()
         .with_prompt("URL")
         .allow_empty(false)
