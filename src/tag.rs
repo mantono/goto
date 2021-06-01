@@ -10,7 +10,7 @@ lazy_static! {
     static ref DISCARD: Regex = Regex::new(r#"[,\s"\\]+"#).unwrap();
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct Tag(String);
 
 impl Tag {
@@ -71,12 +71,6 @@ impl FromStr for Tag {
 impl AsRef<String> for Tag {
     fn as_ref(&self) -> &String {
         &self.0
-    }
-}
-
-impl Hash for Tag {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state)
     }
 }
 
