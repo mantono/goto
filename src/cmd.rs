@@ -104,6 +104,11 @@ pub fn select(
         .map(|(_, bkm)| bkm)
         .collect();
 
+    if bookmarks.is_empty() {
+        writeln!(buffer, "No bookmarks found")?;
+        return Ok(());
+    }
+
     let selection: Option<usize> = Select::new()
         .with_prompt("Select bookmark")
         .default(0)
