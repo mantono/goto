@@ -11,7 +11,6 @@ use regex::Regex;
 use std::{
     collections::HashSet,
     io::Write,
-    path::PathBuf,
     thread::{self, JoinHandle},
 };
 use std::{iter::FromIterator, path::Path};
