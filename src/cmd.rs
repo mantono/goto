@@ -86,7 +86,7 @@ pub fn open(
     Ok(())
 }
 
-fn search_query(terms: &Vec<Tag>) -> String {
+fn search_query(terms: &[Tag]) -> String {
     let query: String = terms.iter().map(|t| t.to_string()).join("+");
     format!("https://duckduckgo.com/?q={}", query)
 }
