@@ -7,7 +7,7 @@ use url::Url;
 
 use crate::tag::Tag;
 
-#[derive(PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Eq, Serialize, Deserialize, Clone)]
 pub struct Bookmark {
     url: Url,
     title: Option<String>,
@@ -117,6 +117,12 @@ impl Display for Bookmark {
         let tags: String = self.tags.iter().join(" ");
         write!(f, "{} - {}", &self.url, tags)?;
         Ok(())
+    }
+}
+
+impl PartialEq for Bookmark {
+    fn eq(&self, other: &Self) -> bool {
+        self.url == other.url && self.tags == other.tags
     }
 }
 
