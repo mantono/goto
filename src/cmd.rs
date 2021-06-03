@@ -97,7 +97,7 @@ pub fn select(
     keywords: Vec<Tag>,
     limit: usize,
     min_score: f64,
-    theme: &Box<dyn Theme>,
+    theme: &dyn Theme,
 ) -> Result<(), Error> {
     let bookmarks: Vec<Bookmark> = filter(dir, keywords, min_score)
         .into_iter()
@@ -110,7 +110,7 @@ pub fn select(
         return Ok(());
     }
 
-    let selection: Option<usize> = Select::with_theme(&**theme)
+    let selection: Option<usize> = Select::with_theme(theme)
         .with_prompt("Select bookmark")
         .default(0)
         .items(&bookmarks)
@@ -126,7 +126,7 @@ fn select_action(
     buffer: &mut impl Write,
     dir: &Path,
     bookmark: Bookmark,
-    theme: &Box<dyn Theme>,
+    theme: &dyn Theme,
 ) -> Result<(), Error> {
     let actions = vec![
         "open",
@@ -136,7 +136,7 @@ fn select_action(
         "delete",
         "exit",
     ];
-    let selection: Option<usize> = Select::with_theme(&**theme)
+    let selection: Option<usize> = Select::with_theme(theme)
         .with_prompt("Select action")
         .default(0)
         .items(&actions)
@@ -190,7 +190,7 @@ pub fn add(
     dir: &Path,
     url: String,
     default: impl TagHolder,
-    theme: &Box<dyn Theme>,
+    theme: &dyn Theme,
 ) -> Result<(), Error> {
     let url: String = if PROTOCOL_PREFIX.is_match(&url) {
         url
@@ -199,9 +199,9 @@ pub fn add(
     };
     let url = url::Url::parse(&url).unwrap();
     let title: JoinHandle<Option<String>> = load_title(&url);
-    let tags: HashSet<Tag> = io::read_tags(default, &theme);
+    let tags: HashSet<Tag> = io::read_tags(default, theme);
     let loaded_title: Option<String> = title.join().unwrap_or_default();
-    let title: Option<String> = io::read_title(loaded_title, &theme);
+    let title: Option<String> = io::read_title(loaded_title, theme);
 
     let bkm = bookmark::Bookmark::new(url, title, tags).unwrap();
     let bkm: Bookmark = save_bookmark(dir, bkm, true)?;

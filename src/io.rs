@@ -5,8 +5,8 @@ use crate::tag::{Tag, TagHolder};
 use dialoguer::{console::Term, theme::Theme, Input};
 use url::Url;
 
-pub fn read_title(default: Option<String>, theme: &Box<dyn Theme>) -> Option<String> {
-    Input::with_theme(&**theme)
+pub fn read_title(default: Option<String>, theme: &dyn Theme) -> Option<String> {
+    Input::with_theme(theme)
         .with_prompt("Title")
         .allow_empty(true)
         .with_initial_text(default.unwrap_or_default())
@@ -14,8 +14,8 @@ pub fn read_title(default: Option<String>, theme: &Box<dyn Theme>) -> Option<Str
         .ok()
 }
 
-pub fn read_tags(default: impl TagHolder, theme: &Box<dyn Theme>) -> HashSet<Tag> {
-    let tags: Result<String> = Input::with_theme(&**theme)
+pub fn read_tags(default: impl TagHolder, theme: &dyn Theme) -> HashSet<Tag> {
+    let tags: Result<String> = Input::with_theme(theme)
         .with_prompt("Tags")
         .allow_empty(true)
         .with_initial_text(default.join())
@@ -27,8 +27,8 @@ pub fn read_tags(default: impl TagHolder, theme: &Box<dyn Theme>) -> HashSet<Tag
     }
 }
 
-pub fn read_url(default: Url, theme: &Box<dyn Theme>) -> Url {
-    let url: Option<String> = Input::with_theme(&**theme)
+pub fn read_url(default: Url, theme: &dyn Theme) -> Url {
+    let url: Option<String> = Input::with_theme(theme)
         .with_prompt("URL")
         .allow_empty(false)
         .with_initial_text(default.to_string())

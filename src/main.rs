@@ -34,7 +34,7 @@ fn main() -> Result<(), Error> {
     let theme: Box<dyn Theme> = cfg.theme();
 
     match cfg.cmd {
-        cmd::Command::Add { url, tags } => cmd::add(&mut buffer, &dir, url, tags, &theme),
+        cmd::Command::Add { url, tags } => cmd::add(&mut buffer, &dir, url, tags, &*theme),
         cmd::Command::Open {
             min_score,
             keywords,
@@ -43,7 +43,7 @@ fn main() -> Result<(), Error> {
             min_score,
             limit,
             keywords,
-        } => cmd::select(&mut buffer, &dir, keywords, limit, min_score, &theme),
+        } => cmd::select(&mut buffer, &dir, keywords, limit, min_score, &*theme),
     }
 }
 
