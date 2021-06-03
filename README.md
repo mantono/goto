@@ -13,6 +13,7 @@ found, the keywords will be used in a seach query instead with a search engine o
 - `goto select -n 20 rust` - List the 20 first bookmarks with the tag "rust"
 - `goto select -s 0.5 git` - List all bookmarks with the tag git and a matching score of at least 0.5
 
+Editing a bookmark is then done by selecting it from the list and chosing the appropiate action.
 ## Bookmarks File
 ```json
 {
@@ -25,7 +26,7 @@ found, the keywords will be used in a seach query instead with a search engine o
 So the anatomy of the file is
 - URL (required)
 - Title (optional)
-- tags (optional)
+- Tags (optional)
 
 The bookmarks file is saved under the path `[OS_DATA_DIR]/[DOMAIN]/[HASH_OF_URL].json`. So for
 exmaple the file above would for most Linux users be saved under
