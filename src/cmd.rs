@@ -38,7 +38,7 @@ pub enum Command {
     Select {
         #[structopt(short = "s", long = "score", default_value = "0.05")]
         min_score: f64,
-        #[structopt(short = "n", long, default_value = "10")]
+        #[structopt(short = "n", long, default_value = "50")]
         limit: usize,
         keywords: Vec<Tag>,
     },
