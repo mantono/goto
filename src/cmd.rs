@@ -34,12 +34,10 @@ pub enum Command {
     },
     /// Select from a list of bookmarks
     ///
-    /// Select from a list of bookmarks
+    /// Filter and select from a list of bookmarks
     Select {
         #[structopt(short = "s", long = "score", default_value = "0.05")]
         min_score: f64,
-        #[structopt(short = "n", long, default_value = "50")]
-        limit: usize,
         keywords: Vec<Tag>,
     },
 }
@@ -95,13 +93,11 @@ pub fn select(
     buffer: &mut impl Write,
     dir: &Path,
     keywords: Vec<Tag>,
-    limit: usize,
     min_score: f64,
     theme: &dyn Theme,
 ) -> Result<(), Error> {
     let bookmarks: Vec<Bookmark> = filter(dir, keywords, min_score)
         .into_iter()
-        .take(limit)
         .map(|(_, bkm)| bkm)
         .collect();
 

@@ -1,7 +1,13 @@
-use std::io::Result;
-use std::{collections::HashSet, convert::TryInto};
+use std::{
+    collections::HashSet,
+    convert::TryInto,
+    thread::{self, JoinHandle},
+    time::Duration,
+};
+use std::{io::Result, sync::mpsc};
 
 use crate::tag::{Tag, TagHolder};
+use crossterm::event::{self, Event, KeyEvent};
 use dialoguer::{console::Term, theme::Theme, Input};
 use url::Url;
 
@@ -42,4 +48,32 @@ pub fn read_url(default: Url, theme: &dyn Theme) -> Url {
         },
         None => default,
     }
+}
+
+pub fn poll_events(tx: mpsc::Sender<Event>) -> JoinHandle<()> {
+    let tick_rate = Duration::from_millis(2000);
+    thread::spawn(move || loop {
+        let has_event: bool = match event::poll(tick_rate) {
+            Ok(status) => status,
+            Err(e) => {
+                log::error!("Unable to read event: {}", e);
+                break;
+            }
+        };
+        if !has_event {
+            continue;
+        }
+        match event::read() {
+            Ok(event) => match tx.send(event) {
+                Ok(_) => {
+                    log::debug!("Event sent")
+                }
+                Err(e) => {
+                    log::info!("Could not send event: {:?}", e);
+                    break;
+                }
+            },
+            Err(err) => panic!("Gott error {}", err),
+        }
+    })
 }
