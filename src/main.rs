@@ -12,6 +12,9 @@ mod tag;
 use crate::cfg::Config;
 use crate::dbg::dbg_info;
 use crate::logger::setup_logging;
+use crossterm::cursor::MoveTo;
+use crossterm::cursor::Show;
+use crossterm::ExecutableCommand;
 //use dialoguer::{console::Style, theme::Theme};
 use crossterm::{
     event::{Event, KeyCode, KeyEvent},
@@ -32,6 +35,10 @@ use std::{path::PathBuf, process};
 use structopt::StructOpt;
 use tag::Tag;
 use tui::layout::Direction;
+use tui::text::Span;
+use tui::text::Spans;
+use tui::text::Text;
+use tui::widgets::Paragraph;
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Layout},
@@ -46,8 +53,13 @@ fn main() -> Result<(), Error> {
 
     enable_raw_mode().expect("Expceted to use raw mode");
     let out = std::io::stdout();
-    let backend = CrosstermBackend::new(out);
-    let term = Terminal::new(backend)?;
+    let mut backend = CrosstermBackend::new(out);
+    backend.execute(Show);
+    let mut term = Terminal::new(backend)?;
+    // This does not work...
+    term.set_cursor(0, 0)?;
+    term.show_cursor()?;
+    term.clear()?;
     let state = State::new(term);
 
     let (tx, rx) = mpsc::channel();
@@ -233,6 +245,8 @@ impl State {
 
     fn render(&mut self) -> Result<(), std::io::Error> {
         let mut list_state = self.list_state();
+        let line: String = self.line();
+        self.terminal.show_cursor();
         self.terminal.draw(|f| {
             let rect = f.size();
 
@@ -256,7 +270,11 @@ impl State {
                 )
                 .highlight_symbol(">>");
 
-            f.render_stateful_widget(list.clone(), chunks[0], &mut list_state);
+            let mut text = Text::from(Spans::from(line));
+            let msg =
+                Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("xyz"));
+            f.render_widget(msg, chunks[0]);
+            //f.render_stateful_widget(block, chunks[0], &mut list_state);
             f.render_stateful_widget(list, chunks[1], &mut list_state);
             //f.render_widget(list, chunks[0]);
         })?;
@@ -281,6 +299,12 @@ impl State {
         self.events.push_back(event);
         Ok(())
     } */
+}
+
+impl Drop for State {
+    fn drop(&mut self) {
+        self.terminal.clear().ok();
+    }
 }
 
 #[derive(Debug)]
