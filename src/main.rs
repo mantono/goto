@@ -22,6 +22,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use dialoguer::console::colors_enabled_stderr;
+use std::fmt::Display;
 use std::{
     alloc::System,
     collections::{HashSet, VecDeque},
@@ -74,7 +75,7 @@ fn main() -> Result<(), Error> {
 }
 
 fn process_events(rx: Receiver<Event>, mut state: State) -> JoinHandle<()> {
-    let timeout = Duration::from_millis(100);
+    let timeout = Duration::from_millis(1000);
     thread::spawn(move || loop {
         match rx.recv_timeout(timeout) {
             Ok(event) => {
@@ -94,10 +95,61 @@ fn process_events(rx: Receiver<Event>, mut state: State) -> JoinHandle<()> {
 }
 
 struct State {
-    input: VecDeque<char>,
-    cursor: usize,
+    input: TextInput,
     selected: usize,
     terminal: Terminal<CrosstermBackend<Stdout>>,
+}
+
+struct TextInput {
+    input: VecDeque<char>,
+    cursor: usize,
+}
+
+impl Default for TextInput {
+    fn default() -> Self {
+        Self {
+            input: VecDeque::new(),
+            cursor: 0,
+        }
+    }
+}
+
+impl Display for TextInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let line: String = self.input.iter().collect();
+        write!(f, "{}", line)
+    }
+}
+
+impl TextInput {
+    fn process_action(&mut self, action: Action) {
+        match action {
+            Action::InsertChar(c) => {
+                self.input.insert(self.cursor, c);
+                self.cursor += 1;
+            }
+            Action::MoveCursor(mv) => match mv {
+                Move::Start => self.cursor = 0,
+                Move::End => self.cursor = self.input.len(),
+                Move::Left => self.cursor = self.cursor.saturating_sub(1),
+                Move::Right => {
+                    self.cursor = self.cursor.saturating_add(1).clamp(0, self.input.len())
+                }
+            },
+            Action::DeleteLeft => {
+                if self.cursor > 0 {
+                    self.input.remove(self.cursor);
+                    self.cursor -= 1;
+                }
+            }
+            Action::DeleteRight => {
+                if self.cursor < self.input.len() {
+                    self.input.remove(self.cursor);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -126,9 +178,8 @@ enum Move {
 impl State {
     pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>) -> State {
         State {
-            input: VecDeque::new(),
+            input: TextInput::default(),
             selected: 0,
-            cursor: 0,
             terminal,
         }
     }
@@ -176,39 +227,10 @@ impl State {
 
     fn process_action(&mut self, action: Action) {
         match action {
-            Action::InsertChar(c) => {
-                self.input.insert(self.cursor, c);
-                self.cursor += 1;
-            }
-            Action::MoveCursor(mv) => match mv {
-                Move::Start => self.cursor = 0,
-                Move::End => self.cursor = self.input.len(),
-                Move::Left => self.cursor = self.cursor.saturating_sub(1),
-                Move::Right => {
-                    self.cursor = self.cursor.saturating_add(1).clamp(0, self.input.len())
-                }
-            },
-            Action::DeleteLeft => {
-                let left_of_cursor: Option<usize> = if self.cursor > 0 {
-                    Some(self.cursor - 1)
-                } else {
-                    None
-                };
-                if let Some(i) = left_of_cursor {
-                    self.input.remove(i);
-                    self.cursor = self.cursor.saturating_sub(1);
-                }
-            }
-            Action::DeleteRight => {
-                let right_of_cursor: Option<usize> = if self.cursor < self.input.len() {
-                    Some(self.cursor)
-                } else {
-                    None
-                };
-                if let Some(i) = right_of_cursor {
-                    self.input.remove(i);
-                }
-            }
+            Action::InsertChar(_)
+            | Action::MoveCursor(_)
+            | Action::DeleteLeft
+            | Action::DeleteRight => self.input.process_action(action),
             Action::SelectionUp => {
                 self.selected = self.selected.saturating_sub(1);
             }
@@ -240,7 +262,7 @@ impl State {
     }
 
     pub fn line(&self) -> String {
-        self.input.iter().collect()
+        self.input.to_string()
     }
 
     fn render(&mut self) -> Result<(), std::io::Error> {
