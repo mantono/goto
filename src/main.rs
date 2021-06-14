@@ -12,8 +12,10 @@ mod tag;
 use crate::cfg::Config;
 use crate::dbg::dbg_info;
 use crate::logger::setup_logging;
+use bookmark::Bookmark;
 use crossterm::cursor::MoveTo;
 use crossterm::cursor::Show;
+use crossterm::event::KeyModifiers;
 use crossterm::ExecutableCommand;
 //use dialoguer::{console::Style, theme::Theme};
 use crossterm::{
@@ -23,6 +25,7 @@ use crossterm::{
 };
 use dialoguer::console::colors_enabled_stderr;
 use std::fmt::Display;
+use std::ops::Range;
 use std::{
     alloc::System,
     collections::{HashSet, VecDeque},
@@ -36,7 +39,6 @@ use std::{path::PathBuf, process};
 use structopt::StructOpt;
 use tag::Tag;
 use tui::layout::Direction;
-use tui::text::Span;
 use tui::text::Spans;
 use tui::text::Text;
 use tui::widgets::Paragraph;
@@ -44,8 +46,8 @@ use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, ListState, StatefulWidget},
-    Frame, Terminal,
+    widgets::{Block, Borders, List, ListItem, ListState},
+    Terminal,
 };
 
 fn main() -> Result<(), Error> {
@@ -54,10 +56,8 @@ fn main() -> Result<(), Error> {
 
     enable_raw_mode().expect("Expceted to use raw mode");
     let out = std::io::stdout();
-    let mut backend = CrosstermBackend::new(out);
-    backend.execute(Show);
+    let backend = CrosstermBackend::new(out);
     let mut term = Terminal::new(backend)?;
-    // This does not work...
     term.set_cursor(0, 0)?;
     term.show_cursor()?;
     term.clear()?;
@@ -65,6 +65,8 @@ fn main() -> Result<(), Error> {
 
     let (tx, rx) = mpsc::channel();
     log::info!("Launching threads");
+    tx.send(Event::Key(KeyEvent::new(KeyCode::Null, KeyModifiers::NONE)))
+        .unwrap();
     let handle_tx = io::poll_events(tx);
     let handle_rx = process_events(rx, state);
     handle_rx.join().unwrap();
@@ -75,7 +77,7 @@ fn main() -> Result<(), Error> {
 }
 
 fn process_events(rx: Receiver<Event>, mut state: State) -> JoinHandle<()> {
-    let timeout = Duration::from_millis(1000);
+    let timeout = Duration::from_millis(500);
     thread::spawn(move || loop {
         match rx.recv_timeout(timeout) {
             Ok(event) => {
@@ -92,6 +94,10 @@ fn process_events(rx: Receiver<Event>, mut state: State) -> JoinHandle<()> {
             },
         }
     })
+}
+
+trait Filterable {
+    fn matches(content: &str) -> bool;
 }
 
 struct State {
@@ -138,7 +144,7 @@ impl TextInput {
             },
             Action::DeleteLeft => {
                 if self.cursor > 0 {
-                    self.input.remove(self.cursor);
+                    self.input.remove(self.cursor - 1);
                     self.cursor -= 1;
                 }
             }
@@ -219,9 +225,17 @@ impl State {
             KeyCode::Delete => Some(Action::DeleteRight),
             KeyCode::Insert => None,
             KeyCode::F(_) => None,
-            KeyCode::Char(c) => Some(Action::InsertChar(c)),
+            KeyCode::Char(c) => Self::char_action(c, event.modifiers),
             KeyCode::Null => None,
             KeyCode::Esc => Some(Action::Exit),
+        }
+    }
+
+    fn char_action(c: char, modifiers: KeyModifiers) -> Option<Action> {
+        if modifiers.contains(KeyModifiers::CONTROL) {
+            None
+        } else {
+            Some(Action::InsertChar(c))
         }
     }
 
@@ -268,9 +282,10 @@ impl State {
     fn render(&mut self) -> Result<(), std::io::Error> {
         let mut list_state = self.list_state();
         let line: String = self.line();
-        self.terminal.show_cursor();
+        let cursor: u16 = self.input.cursor as u16;
         self.terminal.draw(|f| {
             let rect = f.size();
+            f.set_cursor(cursor + 1, 1);
 
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
@@ -283,7 +298,7 @@ impl State {
                 ListItem::new("123"),
             ];
             let list = List::new(items)
-                .block(Block::default().title("goto").borders(Borders::ALL))
+                .block(Block::default().title("bookmarks").borders(Borders::ALL))
                 .style(Style::default().fg(Color::White))
                 .highlight_style(
                     Style::default()
@@ -294,7 +309,7 @@ impl State {
 
             let mut text = Text::from(Spans::from(line));
             let msg =
-                Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("xyz"));
+                Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("goto"));
             f.render_widget(msg, chunks[0]);
             //f.render_stateful_widget(block, chunks[0], &mut list_state);
             f.render_stateful_widget(list, chunks[1], &mut list_state);
