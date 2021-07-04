@@ -65,8 +65,7 @@ fn main() -> Result<(), Error> {
 
     let (tx, rx) = mpsc::channel();
     log::info!("Launching threads");
-    tx.send(Event::Key(KeyEvent::new(KeyCode::Null, KeyModifiers::NONE)))
-        .unwrap();
+    tx.send(Event::Key(KeyEvent::new(KeyCode::Null, KeyModifiers::NONE))).unwrap();
     let handle_tx = io::poll_events(tx);
     let handle_rx = process_events(rx, state);
     handle_rx.join().unwrap();
@@ -300,11 +299,7 @@ impl State {
             let list = List::new(items)
                 .block(Block::default().title("bookmarks").borders(Borders::ALL))
                 .style(Style::default().fg(Color::White))
-                .highlight_style(
-                    Style::default()
-                        .add_modifier(Modifier::BOLD)
-                        .fg(Color::Green),
-                )
+                .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Green))
                 .highlight_symbol(">>");
 
             let mut text = Text::from(Spans::from(line));

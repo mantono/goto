@@ -24,18 +24,11 @@ impl Tag {
     }
 
     fn normalize(input: &str) -> String {
-        DISCARD
-            .replace_all(input, "")
-            .to_lowercase()
-            .trim()
-            .to_string()
+        DISCARD.replace_all(input, "").to_lowercase().trim().to_string()
     }
 
     pub fn new_set<T: Into<String>>(tags: T) -> HashSet<Tag> {
-        TERMINATOR
-            .split(&tags.into())
-            .filter_map(|t| Tag::from_str(t).ok())
-            .collect()
+        TERMINATOR.split(&tags.into()).filter_map(|t| Tag::from_str(t).ok()).collect()
     }
 }
 
