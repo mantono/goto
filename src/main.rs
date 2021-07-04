@@ -387,3 +387,26 @@ fn dir() -> Option<PathBuf> {
         },
     }
 }
+
+mod ui {
+    use reqwest::Url;
+
+    use crate::{bookmark::Bookmark, tag::Tag};
+
+    struct Elements {
+        items: Vec<Bookmark>,
+    }
+
+    impl Elements {
+        pub fn filter(&self, line: &str) -> Vec<(Url, String)> {
+            let tags = Tag::new_set(line);
+            let min_score: f64 = if tags.is_empty() { 0.0 } else { 0.05 };
+
+            self.items
+                .iter()
+                .map(|bkm| score(&bkm.terms(), &tags), bkm)
+                .map(|bkm| (bkm.url(), bkm.to_string()))
+                .collect()
+        }
+    }
+}
