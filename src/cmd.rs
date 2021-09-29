@@ -74,10 +74,7 @@ pub fn open(
     let url: Url = match bookmarks.first() {
         Some((_, bookmark)) => bookmark.url(),
         None => {
-            writeln!(
-                buffer,
-                "No bookmark found for keyword(s), searching online instead"
-            )?;
+            writeln!(buffer, "No bookmark found for keyword(s), searching online instead")?;
             Url::parse(&query).unwrap()
         }
     };
@@ -192,11 +189,7 @@ pub fn add(
     default: impl TagHolder,
     theme: &dyn Theme,
 ) -> Result<(), Error> {
-    let url: String = if PROTOCOL_PREFIX.is_match(&url) {
-        url
-    } else {
-        format!("https://{}", url)
-    };
+    let url: String = if PROTOCOL_PREFIX.is_match(&url) { url } else { format!("https://{}", url) };
     let url = url::Url::parse(&url).unwrap();
     let title: JoinHandle<Option<String>> = load_title(&url);
     let tags: HashSet<Tag> = io::read_tags(default, theme);
