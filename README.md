@@ -3,12 +3,12 @@
 #### Add Bookmark
 - `goto add crates.io` - Add bookmark for URL crates.io (protocol HTTPS is assumed unless specified)
 - `goto add github.com git vcs` Add bookmark for github.com with tags "git" and "vcs"
-#### Open/List Bookmarks
+#### Open Bookmarks
 - `goto open rust` - Open the bookmark which matches the keywords best. If no match is bookmark is
 found, the keywords will be used in a seach query instead with a search engine of choice
  (default is DuckDuckGo).
 
-- `goto open rust crates` - List all bookmarks that conatins the tags _rust_ **and** _crates_.
+- `goto open rust crates` - Open best matching bookmark that conatins the tags _rust_ **and** _crates_.
 #### Search & Edit Bookmarks
 - `goto select -n 20 rust` - List the 20 first bookmarks with the tag "rust"
 - `goto select -s 0.5 git` - List all bookmarks with the tag git and a matching score of at least 0.5
