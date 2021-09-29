@@ -174,11 +174,8 @@ fn select_action(
 }
 
 fn score(v0: &HashSet<Tag>, v1: &HashSet<Tag>) -> f64 {
-    let union: Vec<&Tag> = v0.union(&v1).collect();
-    let intersection: Vec<&Tag> = v0.intersection(&v1).collect();
-
-    let union: f64 = union.len() as f64;
-    let intersection: f64 = intersection.len() as f64;
+    let union: f64 = v0.union(v1).count() as f64;
+    let intersection: f64 = v0.intersection(v1).count() as f64;
     intersection / union
 }
 
