@@ -24,12 +24,14 @@ fn main() -> Result<(), Error> {
     let stream = std::io::stdout();
     let mut buffer = std::io::BufWriter::new(stream);
 
+    let dir: PathBuf = dir().expect("Unable to find data directory");
+
     if cfg.print_dbg {
         writeln!(buffer, "{}", dbg_info())?;
+        writeln!(buffer, "Using data directory {:?}", &dir)?;
         process::exit(0);
     }
 
-    let dir: PathBuf = dir().expect("Unable to find data directory");
     log::debug!("Using data directory {:?}", &dir);
     let theme: Box<dyn Theme> = cfg.theme();
 
