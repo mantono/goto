@@ -33,3 +33,17 @@ exmaple the file above would for most Linux users be saved under
 `~/.local/share/goto/github.com/09a8b930c8b79e7c313e5e741e1d59c39ae91bc1f10cdefa68b47bf77519be57.json`.
 This means that any further attempt to save a bookmark for the exact sam URL would not create a new
 bookmark, but rather merge with the existing one.
+
+## Building
+To build and install run
+```sh
+cargo install --path .
+```
+or with make
+```sh
+make install
+```
+
+### Optional Features
+By default, the `git2` feature is enabled. If you want, [you may chose to exclude this feature](https://doc.rust-lang.org/cargo/reference/features.html#command-line-feature-options) at
+build time if you don't want the ability to synchronize your bookmarks with git.

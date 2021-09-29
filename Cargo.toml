@@ -22,9 +22,13 @@ open = "1.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.11", features = ["json", "blocking"] }
+git2 = { version = "0.13", optional = true }
 
 [build-dependencies]
 built = { version = "0.4", features = ["git2"] }
+
+[features]
+default = ["git2"]
 
 [profile.release]
 lto = true
