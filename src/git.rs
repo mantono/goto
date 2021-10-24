@@ -4,8 +4,8 @@ use std::{
 };
 
 use git2::{
-    Commit, Cred, FetchOptions, Index, Oid, PushOptions, Remote, RemoteCallbacks, Repository,
-    Status, StatusEntry, StatusOptions, Tree,
+    AnnotatedCommit, Commit, Cred, FetchOptions, Index, Oid, PushOptions, Reference, Remote,
+    RemoteCallbacks, Repository, Status, StatusEntry, StatusOptions, Tree,
 };
 
 pub fn sync(path: &Path) -> Result<usize, git2::Error> {
@@ -102,8 +102,31 @@ fn pull<'a>(
         Err(_) => return Ok(None),
     };
     let mut options = FetchOptions::new();
-    options.remote_callbacks(callback());
+    options.remote_callbacks(callback()).download_tags(git2::AutotagOption::All);
+
+    log::info!("1");
+
     remote.fetch(&[branch], Some(&mut options), None)?;
+
+    log::info!("2");
+
+    let mut fetch_head: Reference = repo.find_reference("FETCH_HEAD")?;
+    let commit: AnnotatedCommit = repo.reference_to_annotated_commit(&fetch_head)?;
+    fetch_head.set_target(commit.id(), "Fast forward")?;
+
+    log::info!("3");
+
+    let name = match fetch_head.name() {
+        Some(s) => s.to_string(),
+        None => String::from_utf8_lossy(fetch_head.name_bytes()).to_string(),
+    };
+
+    log::info!("4");
+
+    repo.set_head(&name)?;
+    repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))?;
+
+    log::info!("5");
 
     Ok(Some(remote))
 }
