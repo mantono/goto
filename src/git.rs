@@ -46,7 +46,7 @@ fn add_changes(repo: &Repository, mut index: &mut Index) -> Result<usize, git2::
         .unwrap()
         .iter()
         .filter(|f| filter_status(&f.status()))
-        .map(|f| try_add(&mut index, f))
+        .map(|f| try_add(index, f))
         .filter_map(|f| f.ok())
         .count();
 
