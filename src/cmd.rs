@@ -63,12 +63,17 @@ fn filter(dir: &Path, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookmark)
     let min_score: f64 = if keywords.is_empty() { 0.0 } else { min_score };
     walkdir::WalkDir::new(dir)
         .into_iter()
+        .filter_entry(|f| !is_hidden(f))
         .filter_map(|f| f.ok())
         .filter_map(|f| Bookmark::from_file(&f.into_path()))
         .map(|bkm| (score(&bkm.terms(), &keywords), bkm))
         .filter(|(score, _)| score >= &min_score)
         .sorted_unstable_by(|b0, b1| b0.0.partial_cmp(&b1.0).unwrap().reverse())
         .collect_vec()
+}
+
+fn is_hidden(entry: &walkdir::DirEntry) -> bool {
+    entry.file_name().to_str().map(|f| f.starts_with(".")).unwrap_or(false)
 }
 
 pub fn open(
