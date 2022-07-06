@@ -4,7 +4,7 @@ use crate::{
     tag::{Tag, TagHolder},
     Error,
 };
-use dialoguer::{console::Term, theme::Theme, Select};
+use dialoguer::{console::Term, theme::Theme, FuzzySelect, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -115,7 +115,7 @@ pub fn select(
         return Ok(());
     }
 
-    let selection: Option<usize> = Select::with_theme(theme)
+    let selection: Option<usize> = FuzzySelect::with_theme(theme)
         .with_prompt("Select bookmark")
         .default(0)
         .items(&bookmarks)
