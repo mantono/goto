@@ -4,6 +4,7 @@ use crate::{
     tag::{Tag, TagHolder},
     Error,
 };
+use clap::Subcommand;
 use dialoguer::{console::Term, theme::Theme, FuzzySelect, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -16,7 +17,7 @@ use std::{
 use std::{iter::FromIterator, path::Path};
 use url::Url;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 pub enum Command {
     /// Add bookmark with URL
     ///
@@ -28,7 +29,7 @@ pub enum Command {
     /// match the keywords, the best matching bookmark will be selected. If no bookmark is matching
     /// the keywords, the keywords will be directed to a search query in a search engine.
     Open {
-        #[structopt(short = "s", long = "score", default_value = "0.05")]
+        #[clap(short = 's', long = "score", default_value = "0.05")]
         min_score: f64,
         keywords: Vec<Tag>,
     },
@@ -36,9 +37,9 @@ pub enum Command {
     ///
     /// Select from a list of bookmarks
     Select {
-        #[structopt(short = "s", long = "score", default_value = "0.05")]
+        #[clap(short = 's', long = "score", default_value = "0.05")]
         min_score: f64,
-        #[structopt(short = "n", long, default_value = "8192")]
+        #[clap(short = 'n', long, default_value = "8192")]
         limit: usize,
         keywords: Vec<Tag>,
     },
