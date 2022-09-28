@@ -20,6 +20,7 @@ pub struct Config {
     /// encountered and reported
     #[clap(short = 'D', long = "debug")]
     pub print_dbg: bool,
+
     /// Set use of colors
     ///
     /// Enable or disable output with colors. By default, the application will
@@ -28,8 +29,9 @@ pub struct Config {
     /// Possible values are "on", "true", "off", "false", "auto".
     #[clap(long = "colors", default_value = "auto")]
     colors: Flag,
+
     #[clap(subcommand)]
-    pub cmd: cmd::Command,
+    pub cmd: Option<cmd::Command>,
 }
 
 impl Config {

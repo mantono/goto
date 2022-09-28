@@ -45,6 +45,16 @@ pub enum Command {
     },
 }
 
+impl Default for Command {
+    fn default() -> Self {
+        Command::Select {
+            min_score: 0.05,
+            limit: 8192,
+            keywords: Vec::with_capacity(0),
+        }
+    }
+}
+
 lazy_static! {
     static ref PROTOCOL_PREFIX: Regex = regex::Regex::new("^https?://").unwrap();
     static ref TITLE: Regex =

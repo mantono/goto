@@ -26,13 +26,14 @@ fn main() -> Result<(), Error> {
     if cfg.print_dbg {
         writeln!(buffer, "{}", dbg_info())?;
         writeln!(buffer, "Using data directory {:?}", &dir)?;
+        buffer.flush()?;
         process::exit(0);
     }
 
     log::debug!("Using data directory {:?}", &dir);
     let theme: Box<dyn Theme> = cfg.theme();
 
-    match cfg.cmd {
+    match cfg.cmd.unwrap_or_default() {
         cmd::Command::Add { url, tags } => cmd::add(&mut buffer, &dir, url, tags, &*theme),
         cmd::Command::Open {
             min_score,
