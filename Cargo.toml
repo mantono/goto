@@ -1,6 +1,6 @@
 [package]
 name = "goto"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Anton Österberg <anton@42x.io>"]
 edition = "2021"
 build = "build.rs"
@@ -21,13 +21,12 @@ open = "1.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.11", features = ["json", "blocking"] }
-git2 = { version = "0.13", optional = true }
 
 [build-dependencies]
 built = { version = "0.4", features = ["git2"] }
 
 [features]
-default = ["git2"]
+default = []
 
 [profile.release]
 lto = true
