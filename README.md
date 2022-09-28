@@ -45,10 +45,13 @@ make install
 ```
 
 ### Optional Features
-##### git2
+#### git2
 **Previously**, there was a feature called `git2` which would enable git synchronization for
 bookmarks created by goto.
 
 It did however never work satisfactory, and it did not have a good way of handling merge conflicts
 either. This feature has been removed since of version 0.2.0, and it is recommended that any git
 synchronization is now done manually.
+
+To find were bookmarks are stored locally, run goto with the debug flag `goto --debug` and it will
+the path to the goto data directory.
