@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate structopt;
-
 mod bookmark;
 mod cfg;
 mod cmd;
@@ -14,13 +11,13 @@ mod tag;
 use crate::cfg::Config;
 use crate::dbg::dbg_info;
 use crate::logger::setup_logging;
+use clap::Parser;
 use dialoguer::theme::Theme;
 use std::io::Write;
 use std::{path::PathBuf, process};
-use structopt::StructOpt;
 
 fn main() -> Result<(), Error> {
-    let cfg: Config = Config::from_args();
+    let cfg: Config = Config::parse();
     setup_logging(cfg.verbosity_level);
 
     let stream = std::io::stdout();

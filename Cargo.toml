@@ -6,8 +6,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-clap = "2"
-structopt = "0.3"
+clap = { version = "3.2", features = ["cargo", "color", "derive", "suggestions"] }
 itertools = "0.10"
 regex = "1.5"
 log = "0.4"
