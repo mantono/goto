@@ -31,7 +31,7 @@ So the anatomy of the file is
 The bookmarks file is saved under the path `[OS_DATA_DIR]/[DOMAIN]/[HASH_OF_URL].json`. So for
 exmaple the file above would for most Linux users be saved under
 `~/.local/share/goto/github.com/09a8b930c8b79e7c313e5e741e1d59c39ae91bc1f10cdefa68b47bf77519be57.json`.
-This means that any further attempt to save a bookmark for the exact sam URL would not create a new
+This means that any further attempt to save a bookmark for the exact same URL would not create a new
 bookmark, but rather merge with the existing one.
 
 ## Building
