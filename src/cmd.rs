@@ -43,14 +43,6 @@ pub enum Command {
         limit: usize,
         keywords: Vec<Tag>,
     },
-    /// Sync bookmarks
-    ///
-    /// Synchronize bookmarks saved with a Git repository. This will
-    /// automatically commit, pull, merge and push any changes, as long
-    /// as there isn't any merge conflict. In case of merge conflicts, these
-    /// will have to be resolved manually.
-    #[cfg(feature = "git2")]
-    Sync,
 }
 
 lazy_static! {

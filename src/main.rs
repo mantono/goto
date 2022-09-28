@@ -2,8 +2,6 @@ mod bookmark;
 mod cfg;
 mod cmd;
 mod dbg;
-#[cfg(feature = "git2")]
-mod git;
 mod io;
 mod logger;
 mod tag;
@@ -45,11 +43,6 @@ fn main() -> Result<(), Error> {
             limit,
             keywords,
         } => cmd::select(&mut buffer, &dir, keywords, limit, min_score, &*theme),
-        #[cfg(feature = "git2")]
-        cmd::Command::Sync => {
-            git::sync(&dir)?;
-            Ok(())
-        }
     }
 }
 
@@ -58,7 +51,6 @@ pub enum Error {
     NotExistingFile,
     Formatting,
     Serialization,
-    Sync,
 }
 
 impl From<std::io::Error> for Error {
@@ -79,14 +71,6 @@ impl From<serde_json::Error> for Error {
     fn from(e: serde_json::Error) -> Self {
         log::error!("{}", e.to_string());
         Self::Serialization
-    }
-}
-
-#[cfg(feature = "git2")]
-impl From<git2::Error> for Error {
-    fn from(e: git2::Error) -> Self {
-        log::error!("Unable to sync git repository: {}", e);
-        Self::Sync
     }
 }
 

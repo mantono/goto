@@ -45,5 +45,10 @@ make install
 ```
 
 ### Optional Features
-By default, the `git2` feature is enabled. If you want, [you may chose to exclude this feature](https://doc.rust-lang.org/cargo/reference/features.html#command-line-feature-options) at
-build time if you don't want the ability to synchronize your bookmarks with git.
+##### git2
+**Previously**, there was a feature called `git2` which would enable git synchronization for
+bookmarks created by goto.
+
+It did however never work satisfactory, and it did not have a good way of handling merge conflicts
+either. This feature has been removed since of version 0.2.0, and it is recommended that any git
+synchronization is now done manually.
