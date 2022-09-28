@@ -5,6 +5,7 @@ use crate::{
     Error,
 };
 use clap::Subcommand;
+use copypasta::{ClipboardContext, ClipboardProvider};
 use dialoguer::{console::Term, theme::Theme, FuzzySelect, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -143,6 +144,7 @@ fn select_action(
 ) -> Result<(), Error> {
     let actions = vec![
         "open",
+        "copy",
         "edit title",
         "edit tags",
         "edit URL",
@@ -160,6 +162,12 @@ fn select_action(
             open::that(bookmark.url().to_string())?;
         }
         Some(1) => {
+            let mut ctx = ClipboardContext::new().unwrap();
+            let url: String = bookmark.url().to_string();
+            ctx.set_contents(url)?;
+            writeln!(buffer, "{} copied to clipboard", ctx.get_contents()?)?;
+        }
+        Some(2) => {
             let title: Option<String> = match bookmark.title() {
                 Some(title) => Some(title),
                 None => load_title(&bookmark.url()).join().unwrap(),
@@ -168,18 +176,18 @@ fn select_action(
             let bookmark = Bookmark::new(bookmark.url(), title, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, bookmark, true)?;
         }
-        Some(2) => {
+        Some(3) => {
             let tags = io::read_tags(bookmark.tags().clone(), theme);
             let bookmark = Bookmark::new(bookmark.url(), None, tags).unwrap();
             save_bookmark(dir, bookmark, false)?;
         }
-        Some(3) => {
+        Some(4) => {
             let url = io::read_url(bookmark.url(), theme);
             let new_bookmark = Bookmark::new(url, None, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, new_bookmark, true)?;
             delete_bookmark(dir, &bookmark)?;
         }
-        Some(4) => {
+        Some(5) => {
             delete_bookmark(dir, &bookmark)?;
             let url: String = bookmark.url().to_string();
             writeln!(buffer, "Deleted bookmark {}", url)?;

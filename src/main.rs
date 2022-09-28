@@ -52,6 +52,7 @@ pub enum Error {
     NotExistingFile,
     Formatting,
     Serialization,
+    Clipboard,
 }
 
 impl From<std::io::Error> for Error {
@@ -72,6 +73,13 @@ impl From<serde_json::Error> for Error {
     fn from(e: serde_json::Error) -> Self {
         log::error!("{}", e.to_string());
         Self::Serialization
+    }
+}
+
+impl From<Box<dyn std::error::Error + Send + Sync>> for Error {
+    fn from(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
+        log::error!("{}", e.to_string());
+        Self::Clipboard
     }
 }
 

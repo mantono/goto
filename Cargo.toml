@@ -7,6 +7,7 @@ build = "build.rs"
 
 [dependencies]
 clap = { version = "3.2", features = ["cargo", "color", "derive", "suggestions"] }
+copypasta = { version = "0.8", features = ["x11", "x11-clipboard", "wayland"]}
 itertools = "0.10"
 regex = "1.5"
 log = "0.4"
