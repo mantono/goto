@@ -165,7 +165,7 @@ fn select_action(
             let mut ctx = ClipboardContext::new().unwrap();
             let url: String = bookmark.url().to_string();
             ctx.set_contents(url)?;
-            writeln!(buffer, "{} copied to clipboard", ctx.get_contents()?)?;
+            writeln!(buffer, "{}", ctx.get_contents()?)?;
         }
         Some(2) => {
             let title: Option<String> = match bookmark.title() {
@@ -194,6 +194,7 @@ fn select_action(
         }
         _ => {}
     };
+    buffer.flush()?;
     Ok(())
 }
 
