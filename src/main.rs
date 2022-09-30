@@ -18,15 +18,14 @@ fn main() -> Result<(), Error> {
     let cfg: Config = Config::parse();
     setup_logging(cfg.verbosity_level);
 
-    let stream = std::io::stdout();
-    let mut buffer = std::io::BufWriter::new(stream);
+    let mut streams = io::Streams::new();
 
     let dir: PathBuf = dir().expect("Unable to find data directory");
 
     if cfg.print_dbg {
-        writeln!(buffer, "{}", dbg_info())?;
-        writeln!(buffer, "Using data directory {:?}", &dir)?;
-        buffer.flush()?;
+        writeln!(streams.ui(), "{}", dbg_info())?;
+        writeln!(streams.ui(), "Using data directory {:?}", &dir)?;
+        drop(streams);
         process::exit(0);
     }
 
@@ -34,16 +33,16 @@ fn main() -> Result<(), Error> {
     let theme: Box<dyn Theme> = cfg.theme();
 
     match cfg.cmd.unwrap_or_default() {
-        cmd::Command::Add { url, tags } => cmd::add(&mut buffer, &dir, url, tags, &*theme),
+        cmd::Command::Add { url, tags } => cmd::add(streams, &dir, url, tags, &*theme),
         cmd::Command::Open {
             min_score,
             keywords,
-        } => cmd::open(&mut buffer, &dir, keywords, min_score),
+        } => cmd::open(streams, &dir, keywords, min_score),
         cmd::Command::Select {
             min_score,
             limit,
             keywords,
-        } => cmd::select(&mut buffer, &dir, keywords, limit, min_score, &*theme),
+        } => cmd::select(streams, &dir, keywords, limit, min_score, &*theme),
     }
 }
 
