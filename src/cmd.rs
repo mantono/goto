@@ -14,6 +14,7 @@ use std::{
     collections::HashSet,
     io::Write,
     thread::{self, JoinHandle},
+    time::Duration,
 };
 use std::{iter::FromIterator, path::Path};
 use url::Url;
@@ -165,6 +166,18 @@ fn select_action(
             let mut ctx = ClipboardContext::new().unwrap();
             let url: String = bookmark.url().to_string();
             ctx.set_contents(url)?;
+            #[cfg(target_os = "linux")]
+            {
+                let wait_sec = 10;
+                writeln!(streams.ui(), "Bookmark copied to clipboard. Note that on Linux, content copied to a clipboard only lives as long as the process that created the content.")?;
+                writeln!(
+                    streams.ui(),
+                    "Process will terminate in {} seconds, in which the clipboard will be cleared.",
+                    wait_sec
+                )?;
+                streams.ui().flush()?;
+                thread::sleep(Duration::from_secs(wait_sec));
+            }
             writeln!(streams.output(), "{}", ctx.get_contents()?)?;
         }
         Some(2) => {
