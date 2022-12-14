@@ -51,6 +51,7 @@ pub enum Error {
     NotExistingFile,
     Formatting,
     Serialization,
+    OpenUrl,
 }
 
 impl From<std::io::Error> for Error {

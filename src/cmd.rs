@@ -94,9 +94,15 @@ pub fn open(
             Url::parse(&query).unwrap()
         }
     };
-    open::that(url.to_string()).unwrap();
 
-    Ok(())
+    match open::that(url.to_string()) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            log::warn!("Unable to open bookarmrk: {:?}", e);
+            writeln!(streams.output(), "{}", url.to_string())?;
+            Err(Error::OpenUrl)
+        }
+    }
 }
 
 fn search_query(terms: &[Tag]) -> String {

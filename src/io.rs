@@ -34,7 +34,6 @@ impl Streams {
 
     pub fn flush_all(&mut self) -> Result<(), std::io::Error> {
         self.ui.flush()?;
-        self.term.clear_screen()?;
         self.output.flush()?;
         Ok(())
     }
