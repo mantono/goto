@@ -39,9 +39,13 @@ impl Bookmark {
             None => None,
         };
 
-        if extension != Some("json") {
-            return None;
-        }
+        let _ = match extension {
+            #[cfg(feature = "json")]
+            Some("json") => (),
+            #[cfg(feature = "yaml")]
+            Some("yaml") => (),
+            _ => return None,
+        };
 
         let bytes: Vec<u8> = std::fs::read(path).ok()?;
         bytes.as_slice().try_into().ok()
