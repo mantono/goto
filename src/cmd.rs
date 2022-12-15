@@ -1,11 +1,11 @@
 use crate::{
     bookmark::{self, Bookmark},
-    io,
+    io::{self, Streams},
     tag::{Tag, TagHolder},
     Error,
 };
 use clap::Subcommand;
-use dialoguer::{console::Term, theme::Theme, FuzzySelect, Select};
+use dialoguer::{theme::Theme, FuzzySelect, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -80,7 +80,7 @@ fn is_hidden(entry: &walkdir::DirEntry) -> bool {
 }
 
 pub fn open(
-    buffer: &mut impl Write,
+    mut streams: Streams,
     dir: &Path,
     keywords: Vec<Tag>,
     min_score: f64,
@@ -90,13 +90,19 @@ pub fn open(
     let url: Url = match bookmarks.first() {
         Some((_, bookmark)) => bookmark.url(),
         None => {
-            writeln!(buffer, "No bookmark found for keyword(s), searching online instead")?;
+            writeln!(streams.ui(), "No bookmark found for keyword(s), searching online instead")?;
             Url::parse(&query).unwrap()
         }
     };
-    open::that(url.to_string()).unwrap();
 
-    Ok(())
+    match open::that(url.to_string()) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            log::warn!("Unable to open bookarmrk: {:?}", e);
+            writeln!(streams.output(), "{}", url.to_string())?;
+            Err(Error::OpenUrl)
+        }
+    }
 }
 
 fn search_query(terms: &[Tag]) -> String {
@@ -105,7 +111,7 @@ fn search_query(terms: &[Tag]) -> String {
 }
 
 pub fn select(
-    buffer: &mut impl Write,
+    mut streams: Streams,
     dir: &Path,
     keywords: Vec<Tag>,
     limit: usize,
@@ -119,7 +125,7 @@ pub fn select(
         .collect();
 
     if bookmarks.is_empty() {
-        writeln!(buffer, "No bookmarks found")?;
+        writeln!(streams.ui(), "No bookmarks found")?;
         return Ok(());
     }
 
@@ -127,16 +133,16 @@ pub fn select(
         .with_prompt("Select bookmark")
         .default(0)
         .items(&bookmarks)
-        .interact_on_opt(&Term::stdout())?;
+        .interact_on_opt(streams.term())?;
 
     match selection {
-        Some(i) => select_action(buffer, dir, bookmarks[i].clone(), theme),
+        Some(i) => select_action(streams, dir, bookmarks[i].clone(), theme),
         None => Ok(()),
     }
 }
 
 fn select_action(
-    buffer: &mut impl Write,
+    mut streams: Streams,
     dir: &Path,
     bookmark: Bookmark,
     theme: &dyn Theme,
@@ -153,7 +159,7 @@ fn select_action(
         .with_prompt("Select action")
         .default(0)
         .items(&actions)
-        .interact_on_opt(&Term::stdout())?;
+        .interact_on_opt(streams.term())?;
 
     match selection {
         Some(0) => {
@@ -164,17 +170,17 @@ fn select_action(
                 Some(title) => Some(title),
                 None => load_title(&bookmark.url()).join().unwrap(),
             };
-            let title: Option<String> = io::read_title(title, theme);
+            let title: Option<String> = io::read_title(title, theme, streams.term());
             let bookmark = Bookmark::new(bookmark.url(), title, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, bookmark, true)?;
         }
         Some(2) => {
-            let tags = io::read_tags(bookmark.tags().clone(), theme);
+            let tags = io::read_tags(bookmark.tags().clone(), theme, streams.term());
             let bookmark = Bookmark::new(bookmark.url(), None, tags).unwrap();
             save_bookmark(dir, bookmark, false)?;
         }
         Some(3) => {
-            let url = io::read_url(bookmark.url(), theme);
+            let url = io::read_url(bookmark.url(), theme, streams.term());
             let new_bookmark = Bookmark::new(url, None, bookmark.tags().clone()).unwrap();
             save_bookmark(dir, new_bookmark, true)?;
             delete_bookmark(dir, &bookmark)?;
@@ -182,10 +188,11 @@ fn select_action(
         Some(4) => {
             delete_bookmark(dir, &bookmark)?;
             let url: String = bookmark.url().to_string();
-            writeln!(buffer, "Deleted bookmark {}", url)?;
+            writeln!(streams.ui(), "Deleted bookmark {}", url)?;
         }
         _ => {}
     };
+
     Ok(())
 }
 
@@ -196,7 +203,7 @@ fn score(v0: &HashSet<Tag>, v1: &HashSet<Tag>) -> f64 {
 }
 
 pub fn add(
-    buffer: &mut impl Write,
+    mut streams: Streams,
     dir: &Path,
     url: String,
     default: impl TagHolder,
@@ -205,14 +212,14 @@ pub fn add(
     let url: String = if PROTOCOL_PREFIX.is_match(&url) { url } else { format!("https://{}", url) };
     let url = url::Url::parse(&url).unwrap();
     let title: JoinHandle<Option<String>> = load_title(&url);
-    let tags: HashSet<Tag> = io::read_tags(default, theme);
+    let tags: HashSet<Tag> = io::read_tags(default, theme, streams.term());
     let loaded_title: Option<String> = title.join().unwrap_or_default();
-    let title: Option<String> = io::read_title(loaded_title, theme);
+    let title: Option<String> = io::read_title(loaded_title, theme, streams.term());
 
     let bkm = bookmark::Bookmark::new(url, title, tags).unwrap();
     let bkm: Bookmark = save_bookmark(dir, bkm, true)?;
 
-    writeln!(buffer, "{}", bkm)?;
+    writeln!(streams.output(), "{}", bkm)?;
 
     Ok(())
 }
