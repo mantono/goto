@@ -11,7 +11,6 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::{
     collections::HashSet,
-    fs::FileType,
     io::Write,
     thread::{self, JoinHandle},
 };
@@ -257,7 +256,7 @@ fn load_title(url: &Url) -> JoinHandle<Option<String>> {
 }
 
 fn save_bookmark(dir: &Path, bkm: Bookmark, merge: bool) -> Result<Bookmark, FileError> {
-    let full_path = dbg!(dir.join(bkm.rel_path()));
+    let full_path = dir.join(bkm.rel_path());
     std::fs::create_dir_all(full_path.parent().expect("Create full path"))?;
 
     let bkm: Bookmark = if full_path.exists() && merge {
@@ -266,7 +265,7 @@ fn save_bookmark(dir: &Path, bkm: Bookmark, merge: bool) -> Result<Bookmark, Fil
         bkm
     };
 
-    let yaml: String = serde_yaml::to_string(dbg!(&bkm)).map_err(|_| FileError::Serialize)?;
+    let yaml: String = serde_yaml::to_string(&bkm).map_err(|_| FileError::Serialize)?;
     std::fs::write(full_path, yaml)?;
 
     Ok(bkm)
