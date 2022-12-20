@@ -38,7 +38,8 @@ exmaple the file above would for most Linux users be saved under
 This means that any further attempt to save a bookmark for the exact same URL would not create a new
 bookmark, but rather merge with the existing one.
 
-**Note**: An earlier version (0.2.0 and earlier) stored bookmark files in JSON instead of YAML.
+#### Deprecated JSON Support
+An earlier version (0.2.0 and earlier) stored bookmark files in JSON instead of YAML.
 Since version 0.3.0, YAML is used instead since it is more human readable and less prone to merge
 conflicts, and when merge conflicts occur, they are easier to resolve. If you still have bookmarks
 files in JSON, so you can migrate to the new YAML format by running `goto migrate` (requires feature
