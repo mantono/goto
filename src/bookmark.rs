@@ -192,10 +192,16 @@ impl Display for FileError {
             FileError::IO(e) => format!("IO erro: {}", e),
             FileError::UnknownExtension => String::from("Unknown extension"),
             FileError::UnsupportedExtension(ext) => match ext.as_str() {
-                "json" => String::from("JSON is no longer supported. Run 'goto migrate' to migrate all bookmarks files from JSON to YAML."),
-                _ => format!("Unsupported extension '{}'", ext)
-            }
+                "json" => String::from(JSON_ERROR),
+                _ => format!("Unsupported extension '{}'", ext),
+            },
         };
         f.write_str(&s)
     }
 }
+
+const JSON_ERROR: &'static str = r#"
+    JSON is no longer supported.
+    Run 'goto migrate' to migrate all bookmarks files from JSON to YAML.
+    See https://github.com/mantono/goto#deprecated-json-support for more information.
+"#;
