@@ -4,11 +4,14 @@ mod cmd;
 mod dbg;
 mod io;
 mod logger;
+#[cfg(feature = "migrate")]
+mod migrate;
 mod tag;
 
 use crate::cfg::Config;
 use crate::dbg::dbg_info;
 use crate::logger::setup_logging;
+use bookmark::FileError;
 use clap::Parser;
 use dialoguer::theme::Theme;
 use std::io::Write;
@@ -43,6 +46,8 @@ fn main() -> Result<(), Error> {
             limit,
             keywords,
         } => cmd::select(streams, &dir, keywords, limit, min_score, &*theme),
+        #[cfg(feature = "migrate")]
+        cmd::Command::Migrate => migrate::migrate(streams, &dir),
     }
 }
 
@@ -52,6 +57,7 @@ pub enum Error {
     Formatting,
     Serialization,
     OpenUrl,
+    Other,
 }
 
 impl From<std::io::Error> for Error {
@@ -68,10 +74,20 @@ impl From<std::fmt::Error> for Error {
     }
 }
 
-impl From<serde_json::Error> for Error {
-    fn from(e: serde_json::Error) -> Self {
+impl From<serde_yaml::Error> for Error {
+    fn from(e: serde_yaml::Error) -> Self {
         log::error!("{}", e.to_string());
         Self::Serialization
+    }
+}
+
+impl From<FileError> for Error {
+    fn from(e: FileError) -> Self {
+        match e {
+            FileError::NotFound | FileError::NotFile => Error::NotExistingFile,
+            FileError::Deserialize | FileError::Serialize => Error::Serialization,
+            _ => Error::Other,
+        }
     }
 }
 

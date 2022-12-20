@@ -1,6 +1,6 @@
 [package]
 name = "goto"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Anton Österberg <anton@42x.io>"]
 edition = "2021"
 build = "build.rs"
@@ -21,15 +21,14 @@ open = "3.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", optional = true }
 reqwest = { version = "0.11", features = ["json", "blocking"] }
-serde_yaml = { version = "0.9", optional = true }
+serde_yaml = "0.9"
+
+[features]
+default = ["migrate"]
+migrate = ["dep:serde_json"]
 
 [build-dependencies]
 built = { version = "0.4", features = ["git2"] }
-
-[features]
-default = ["json", "yaml"]
-json = ["dep:serde_json"]
-yaml = ["dep:serde_yaml"]
 
 [profile.release]
 lto = true
