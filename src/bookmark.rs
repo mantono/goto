@@ -188,7 +188,7 @@ impl Display for FileError {
             FileError::NotFound => String::from("File not found"),
             FileError::NotFile => String::from("Not a file"),
             FileError::Deserialize => String::from("Unable to deserialize"),
-            FileError::Serialize => String::from("Unable to serialuze"),
+            FileError::Serialize => String::from("Unable to serialize"),
             FileError::IO(e) => format!("IO erro: {}", e),
             FileError::UnknownExtension => String::from("Unknown extension"),
             FileError::UnsupportedExtension(ext) => match ext.as_str() {
