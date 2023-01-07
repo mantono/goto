@@ -7,7 +7,7 @@ use url::Url;
 
 use crate::tag::Tag;
 
-#[derive(Eq, Serialize, Deserialize, Clone)]
+#[derive(Eq, Serialize, Deserialize, Clone, Debug)]
 pub struct Bookmark {
     url: Url,
     title: Option<String>,
@@ -29,9 +29,13 @@ impl Bookmark {
         Ok(bm)
     }
 
-    pub fn from_file(path: &Path) -> Option<Self> {
-        if !path.exists() && !path.is_file() {
-            return None;
+    pub fn from_file(path: &Path) -> Result<Self, FileError> {
+        if !path.exists() {
+            return Err(FileError::NotFound);
+        }
+
+        if !path.is_file() {
+            return Err(FileError::NotFile);
         }
 
         let extension: Option<&str> = match path.extension() {
@@ -39,12 +43,18 @@ impl Bookmark {
             None => None,
         };
 
-        if extension != Some("json") {
-            return None;
-        }
+        match extension {
+            Some("yaml") => (),
+            None => return Err(FileError::UnknownExtension),
+            Some(ext) => return Err(FileError::UnsupportedExtension(ext.to_string())),
+        };
 
-        let bytes: Vec<u8> = std::fs::read(path).ok()?;
-        bytes.as_slice().try_into().ok()
+        let bytes: Vec<u8> = std::fs::read(path)?;
+
+        serde_yaml::from_slice(&bytes).map_err(|e| {
+            println!("{} when parsing {:?}", e, path);
+            FileError::Deserialize
+        })
     }
 
     fn id(&self) -> String {
@@ -82,9 +92,8 @@ impl Bookmark {
 
     pub fn rel_path(&self) -> PathBuf {
         let domain = self.domain().unwrap_or("").to_string();
-        let mut hash = self.id();
-        hash.push_str(".json");
-        let path: String = [domain, hash].join("/");
+        let hash = self.id();
+        let path: String = format!("{}/{}.{}", domain, hash, "yaml");
         path.into()
     }
 
@@ -129,18 +138,18 @@ fn hash(input: &str) -> String {
 }
 
 impl FromStr for Bookmark {
-    type Err = serde_json::Error;
+    type Err = serde_yaml::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        serde_json::from_str(s)
+        serde_yaml::from_str(s)
     }
 }
 
 impl TryInto<Bookmark> for &[u8] {
-    type Error = serde_json::Error;
+    type Error = serde_yaml::Error;
 
     fn try_into(self) -> Result<Bookmark, Self::Error> {
-        serde_json::from_slice(self)
+        serde_yaml::from_slice(self)
     }
 }
 
@@ -149,3 +158,50 @@ pub enum Error {
     InvalidUrl,
     NoDomain,
 }
+
+#[derive(Debug, Clone)]
+pub enum FileError {
+    NotFound,
+    NotFile,
+    UnknownExtension,
+    UnsupportedExtension(String),
+    Deserialize,
+    Serialize,
+    IO(String),
+}
+
+impl From<std::io::Error> for FileError {
+    fn from(error: std::io::Error) -> Self {
+        Self::IO(error.to_string())
+    }
+}
+
+impl From<serde_yaml::Error> for FileError {
+    fn from(_: serde_yaml::Error) -> Self {
+        Self::Deserialize
+    }
+}
+
+impl Display for FileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s: String = match self {
+            FileError::NotFound => String::from("File not found"),
+            FileError::NotFile => String::from("Not a file"),
+            FileError::Deserialize => String::from("Unable to deserialize"),
+            FileError::Serialize => String::from("Unable to serialize"),
+            FileError::IO(e) => format!("IO erro: {}", e),
+            FileError::UnknownExtension => String::from("Unknown extension"),
+            FileError::UnsupportedExtension(ext) => match ext.as_str() {
+                "json" => String::from(JSON_ERROR),
+                _ => format!("Unsupported extension '{}'", ext),
+            },
+        };
+        f.write_str(&s)
+    }
+}
+
+const JSON_ERROR: &str = r#"
+    JSON is no longer supported.
+    Run 'goto migrate' to migrate all bookmarks files from JSON to YAML.
+    See https://github.com/mantono/goto#deprecated-json-support for more information.
+"#;

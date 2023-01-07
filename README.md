@@ -15,12 +15,16 @@ found, the keywords will be used in a seach query instead with a search engine o
 
 Editing a bookmark is then done by selecting it from the list and chosing the appropiate action.
 ## Bookmarks File
-```json
-{
-    "url": "https://github.com/",
-    "title": "GitHub: Where the world builds software · GitHub",
-    "tags": [ "source", "vcs", "github", "git", "control", "community" ]
-}
+```yaml
+url: https://github.com/
+title: GitHub: Where the world builds software · GitHub
+tags:
+  - community
+  - control
+  - git
+  - github
+  - source
+  - vcs
 ```
 
 So the anatomy of the file is
@@ -28,11 +32,18 @@ So the anatomy of the file is
 - Title (optional)
 - Tags (optional)
 
-The bookmarks file is saved under the path `[OS_DATA_DIR]/[DOMAIN]/[HASH_OF_URL].json`. So for
+The bookmarks file is saved under the path `[OS_DATA_DIR]/[DOMAIN]/[HASH_OF_URL].yaml`. So for
 exmaple the file above would for most Linux users be saved under
-`~/.local/share/goto/github.com/09a8b930c8b79e7c313e5e741e1d59c39ae91bc1f10cdefa68b47bf77519be57.json`.
+`~/.local/share/goto/github.com/09a8b930c8b79e7c313e5e741e1d59c39ae91bc1f10cdefa68b47bf77519be57.yaml`.
 This means that any further attempt to save a bookmark for the exact same URL would not create a new
 bookmark, but rather merge with the existing one.
+
+#### Deprecated JSON Support
+An earlier version (0.2.0 and earlier) stored bookmark files in JSON instead of YAML.
+Since version 0.3.0, YAML is used instead since it is more human readable and less prone to merge
+conflicts, and when merge conflicts occur, they are easier to resolve. If you still have bookmarks
+files in JSON, so you can migrate to the new YAML format by running `goto migrate` (requires feature
+[migrate](README.md#migrate)).
 
 ## Building
 To build and install run
@@ -45,6 +56,10 @@ make install
 ```
 
 ### Optional Features
+#### migrate
+Used for enabling the migrate subcommand (`goto migrate`) which migrates bookmarks files from the
+old JSON format to the new YAML format.
+
 #### git2
 **Previously**, there was a feature called `git2` which would enable git synchronization for
 bookmarks created by goto.
