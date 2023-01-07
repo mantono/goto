@@ -200,7 +200,7 @@ impl Display for FileError {
     }
 }
 
-const JSON_ERROR: &'static str = r#"
+const JSON_ERROR: &str = r#"
     JSON is no longer supported.
     Run 'goto migrate' to migrate all bookmarks files from JSON to YAML.
     See https://github.com/mantono/goto#deprecated-json-support for more information.
