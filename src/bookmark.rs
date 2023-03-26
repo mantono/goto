@@ -58,7 +58,7 @@ impl Bookmark {
     }
 
     fn id(&self) -> String {
-        hash(&self.url.as_ref())
+        hash(self.url.as_ref())
     }
 
     pub fn url(&self) -> Url {

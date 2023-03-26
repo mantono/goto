@@ -1,7 +1,6 @@
 mod bookmark;
 mod cfg;
 mod cmd;
-mod dbg;
 mod io;
 mod logger;
 #[cfg(feature = "migrate")]
@@ -9,7 +8,6 @@ mod migrate;
 mod tag;
 
 use crate::cfg::Config;
-use crate::dbg::dbg_info;
 use crate::logger::setup_logging;
 use bookmark::FileError;
 use clap::Parser;
@@ -26,7 +24,7 @@ fn main() -> Result<(), Error> {
     let dir: PathBuf = dir().expect("Unable to find data directory");
 
     if cfg.print_dbg {
-        writeln!(streams.ui(), "{}", dbg_info())?;
+        writeln!(streams.ui(), "{}", include_str!("../target/build_data"))?;
         writeln!(streams.ui(), "Using data directory {:?}", &dir)?;
         drop(streams);
         process::exit(0);
