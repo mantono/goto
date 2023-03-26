@@ -37,9 +37,9 @@ pub struct Config {
 impl Config {
     pub fn theme(&self) -> Box<dyn Theme> {
         match self.colors {
-            Flag::True => Box::new(ColorfulTheme::default()),
+            Flag::True => Box::<ColorfulTheme>::default(),
             Flag::False => Box::new(SimpleTheme),
-            Flag::Auto => Box::new(ColorfulTheme::default()),
+            Flag::Auto => Box::<ColorfulTheme>::default(),
         }
     }
 }
