@@ -88,7 +88,7 @@ fn filter(dir: &Path, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookmark)
 }
 
 fn is_hidden(entry: &walkdir::DirEntry) -> bool {
-    entry.file_name().to_str().map(|f| f.starts_with(".")).unwrap_or(false)
+    entry.file_name().to_str().map(|f| f.starts_with('.')).unwrap_or(false)
 }
 
 pub fn open(
