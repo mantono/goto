@@ -111,7 +111,7 @@ pub fn open(
         Ok(_) => Ok(()),
         Err(e) => {
             log::warn!("Unable to open bookarmrk: {:?}", e);
-            writeln!(streams.output(), "{}", url.to_string())?;
+            writeln!(streams.output(), "{}", url)?;
             Err(Error::OpenUrl)
         }
     }
