@@ -6,7 +6,6 @@ on:
       - '**/Cargo.lock'
       - 'src/**'
       - 'tests/**'
-      - 'build.rs'
       - '.github/workflows/rust.yml'
 jobs:
   build:
@@ -42,4 +41,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
       - name: rustfmt
-        run: rustfmt --check src/* build.rs
+        run: rustfmt --check src/*
