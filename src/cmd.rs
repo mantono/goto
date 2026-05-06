@@ -43,6 +43,11 @@ pub enum Command {
         limit: usize,
         keywords: Vec<Tag>,
     },
+    /// List bookmarks
+    ///
+    /// List bookmarks containing all of the provided tags. If no tags are provided, all bookmarks
+    /// are listed. Output format: URL | TITLE | TAGS (title omitted if not set).
+    List { tags: Vec<Tag> },
     /// Migrate format of bookmarks
     ///
     /// Migrate all existing bookmarks from JSON to YAML. This action is not reversible.
@@ -274,4 +279,102 @@ fn save_bookmark(dir: &Path, bkm: Bookmark, merge: bool) -> Result<Bookmark, Fil
 fn delete_bookmark(dir: &Path, bkm: &Bookmark) -> Result<(), std::io::Error> {
     let full_path = dir.join(bkm.rel_path());
     std::fs::remove_file(full_path)
+}
+
+fn format_list_line(bkm: &Bookmark) -> String {
+    let tags: String = bkm.tags().iter().sorted().join(" ");
+    match bkm.title() {
+        Some(title) => format!("{} | {} | {}", bkm.url(), title, tags),
+        None => format!("{} | {}", bkm.url(), tags),
+    }
+}
+
+fn has_all_tags(bkm: &Bookmark, tags: &[Tag]) -> bool {
+    tags.iter().all(|t| bkm.tags().contains(t))
+}
+
+pub fn list(mut streams: Streams, dir: &Path, tags: Vec<Tag>) -> Result<(), Error> {
+    walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(|f| !is_hidden(f))
+        .filter_map(|f| f.ok())
+        .filter(|f| f.file_type().is_file())
+        .filter_map(|f| match Bookmark::from_file(&f.clone().into_path()) {
+            Ok(bkm) => Some(bkm),
+            Err(e) => {
+                log::error!("Unable to read {}: {}", f.path().to_str().unwrap_or_default(), e);
+                None
+            }
+        })
+        .filter(|bkm| has_all_tags(bkm, &tags))
+        .try_for_each(|bkm| writeln!(streams.output(), "{}", format_list_line(&bkm)))?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_bookmark(url: &str, title: Option<&str>, tags: &[&str]) -> Bookmark {
+        let url: url::Url = url::Url::parse(url).unwrap();
+        let tags: HashSet<Tag> = tags.iter().filter_map(|t| Tag::new(*t).ok()).collect();
+        Bookmark::new(url, title.map(String::from), tags).unwrap()
+    }
+
+    #[test]
+    fn list_line_includes_url_title_and_tags() {
+        let bkm: Bookmark =
+            make_bookmark("https://example.com", Some("Example Site"), &["rust", "docs"]);
+        let line: String = format_list_line(&bkm);
+        assert!(line.contains("https://example.com"), "missing URL");
+        assert!(line.contains("Example Site"), "missing title");
+        assert!(line.contains("rust"), "missing tag 'rust'");
+        assert!(line.contains("docs"), "missing tag 'docs'");
+    }
+
+    #[test]
+    fn list_line_without_title_omits_title_section() {
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &["rust"]);
+        let line: String = format_list_line(&bkm);
+        assert!(line.contains("https://example.com"), "missing URL");
+        assert!(!line.contains("None"), "should not contain 'None'");
+        assert!(line.contains("rust"), "missing tag");
+        assert_eq!(
+            line.matches('|').count(),
+            1,
+            "should have exactly one pipe separator when no title"
+        );
+    }
+
+    #[test]
+    fn list_line_with_title_has_two_pipe_separators() {
+        let bkm: Bookmark = make_bookmark("https://example.com", Some("My Title"), &["foo"]);
+        let line: String = format_list_line(&bkm);
+        assert_eq!(
+            line.matches('|').count(),
+            2,
+            "should have two pipe separators when title present"
+        );
+    }
+
+    #[test]
+    fn has_all_tags_returns_true_when_all_present() {
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &["rust", "docs", "async"]);
+        let required: Vec<Tag> = vec![Tag::new("rust").unwrap(), Tag::new("docs").unwrap()];
+        assert!(has_all_tags(&bkm, &required));
+    }
+
+    #[test]
+    fn has_all_tags_returns_false_when_tag_missing() {
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &["rust"]);
+        let required: Vec<Tag> = vec![Tag::new("rust").unwrap(), Tag::new("docs").unwrap()];
+        assert!(!has_all_tags(&bkm, &required));
+    }
+
+    #[test]
+    fn has_all_tags_returns_true_when_no_tags_required() {
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &["rust"]);
+        let required: Vec<Tag> = vec![];
+        assert!(has_all_tags(&bkm, &required));
+    }
 }

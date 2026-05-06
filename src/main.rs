@@ -43,6 +43,7 @@ fn main() -> Result<(), Error> {
             limit,
             keywords,
         } => cmd::select(streams, &dir, keywords, limit, min_score, &*theme),
+        cmd::Command::List { tags } => cmd::list(streams, &dir, tags),
         #[cfg(feature = "migrate")]
         cmd::Command::Migrate => migrate::migrate(streams, &dir),
     }
