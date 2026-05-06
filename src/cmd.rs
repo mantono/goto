@@ -4,7 +4,7 @@ use crate::{
     tag::{Tag, TagHolder},
     Error,
 };
-use clap::Subcommand;
+use clap::{Subcommand, ValueEnum};
 use dialoguer::{theme::Theme, FuzzySelect, Select};
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -14,8 +14,33 @@ use std::{
     io::Write,
     thread::{self, JoinHandle},
 };
-use std::{iter::FromIterator, path::Path};
+use std::{
+    iter::FromIterator,
+    path::{Path, PathBuf},
+};
 use url::Url;
+
+#[derive(Debug, Clone, PartialEq, Eq, ValueEnum)]
+pub enum FormatField {
+    Url,
+    Title,
+    Tags,
+    Path,
+}
+
+impl std::str::FromStr for FormatField {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "url" => Ok(FormatField::Url),
+            "title" => Ok(FormatField::Title),
+            "tags" => Ok(FormatField::Tags),
+            "path" => Ok(FormatField::Path),
+            other => Err(format!("unknown format field: {}", other)),
+        }
+    }
+}
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -46,8 +71,16 @@ pub enum Command {
     /// List bookmarks
     ///
     /// List bookmarks containing all of the provided tags. If no tags are provided, all bookmarks
-    /// are listed. Output format: URL | TITLE | TAGS (title omitted if not set).
-    List { tags: Vec<Tag> },
+    /// are listed. Default output: URL only (one per line). Use --format to customise fields.
+    /// Accepted fields: url, title, tags, path. Example: goto list --format=url,title,tags,path
+    /// Use --delimiter to set the separator between fields (default: |, no surrounding spaces).
+    List {
+        #[clap(long, value_delimiter = ',')]
+        format: Vec<FormatField>,
+        #[clap(long, default_value = "|")]
+        delimiter: String,
+        tags: Vec<Tag>,
+    },
     /// Migrate format of bookmarks
     ///
     /// Migrate all existing bookmarks from JSON to YAML. This action is not reversible.
@@ -281,33 +314,56 @@ fn delete_bookmark(dir: &Path, bkm: &Bookmark) -> Result<(), std::io::Error> {
     std::fs::remove_file(full_path)
 }
 
-fn format_list_line(bkm: &Bookmark) -> String {
-    let tags: String = bkm.tags().iter().sorted().join(" ");
-    match bkm.title() {
-        Some(title) => format!("{} | {} | {}", bkm.url(), title, tags),
-        None => format!("{} | {}", bkm.url(), tags),
+fn format_list_line(
+    fields: &[FormatField],
+    bkm: &Bookmark,
+    path: &Path,
+    delimiter: &str,
+) -> String {
+    if fields.is_empty() {
+        return bkm.url().to_string();
     }
+    fields
+        .iter()
+        .map(|field| match field {
+            FormatField::Url => bkm.url().to_string(),
+            FormatField::Title => bkm.title().unwrap_or_default(),
+            FormatField::Tags => bkm.tags().iter().sorted().join(" "),
+            FormatField::Path => path.display().to_string(),
+        })
+        .join(delimiter)
 }
 
 fn has_all_tags(bkm: &Bookmark, tags: &[Tag]) -> bool {
     tags.iter().all(|t| bkm.tags().contains(t))
 }
 
-pub fn list(mut streams: Streams, dir: &Path, tags: Vec<Tag>) -> Result<(), Error> {
+pub fn list(
+    mut streams: Streams,
+    dir: &Path,
+    tags: Vec<Tag>,
+    format: Vec<FormatField>,
+    delimiter: String,
+) -> Result<(), Error> {
     walkdir::WalkDir::new(dir)
         .into_iter()
         .filter_entry(|f| !is_hidden(f))
         .filter_map(|f| f.ok())
         .filter(|f| f.file_type().is_file())
-        .filter_map(|f| match Bookmark::from_file(&f.clone().into_path()) {
-            Ok(bkm) => Some(bkm),
-            Err(e) => {
-                log::error!("Unable to read {}: {}", f.path().to_str().unwrap_or_default(), e);
-                None
+        .filter_map(|f| {
+            let path: PathBuf = f.into_path();
+            match Bookmark::from_file(&path) {
+                Ok(bkm) => Some((path, bkm)),
+                Err(e) => {
+                    log::error!("Unable to read {}: {}", path.to_str().unwrap_or_default(), e);
+                    None
+                }
             }
         })
-        .filter(|bkm| has_all_tags(bkm, &tags))
-        .try_for_each(|bkm| writeln!(streams.output(), "{}", format_list_line(&bkm)))?;
+        .filter(|(_, bkm)| has_all_tags(bkm, &tags))
+        .try_for_each(|(path, bkm)| {
+            writeln!(streams.output(), "{}", format_list_line(&format, &bkm, &path, &delimiter))
+        })?;
     Ok(())
 }
 
@@ -322,39 +378,72 @@ mod tests {
     }
 
     #[test]
-    fn list_line_includes_url_title_and_tags() {
+    fn format_default_empty_fields_returns_url_only() {
+        let bkm: Bookmark = make_bookmark("https://example.com", Some("Title"), &["rust"]);
+        let path: &Path = Path::new("/data/goto/example.com/abc.yaml");
+        let line: String = format_list_line(&[], &bkm, path, "|");
+        assert_eq!(line, "https://example.com/");
+    }
+
+    #[test]
+    fn format_url_field_returns_url() {
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &[]);
+        let path: &Path = Path::new("/data/goto/example.com/abc.yaml");
+        let line: String = format_list_line(&[FormatField::Url], &bkm, path, "|");
+        assert_eq!(line, "https://example.com/");
+    }
+
+    #[test]
+    fn format_url_title_tags_with_title_present() {
         let bkm: Bookmark =
-            make_bookmark("https://example.com", Some("Example Site"), &["rust", "docs"]);
-        let line: String = format_list_line(&bkm);
-        assert!(line.contains("https://example.com"), "missing URL");
-        assert!(line.contains("Example Site"), "missing title");
-        assert!(line.contains("rust"), "missing tag 'rust'");
-        assert!(line.contains("docs"), "missing tag 'docs'");
+            make_bookmark("https://example.com", Some("My Site"), &["docs", "rust"]);
+        let path: &Path = Path::new("/data/goto/example.com/abc.yaml");
+        let line: String = format_list_line(
+            &[FormatField::Url, FormatField::Title, FormatField::Tags],
+            &bkm,
+            path,
+            "|",
+        );
+        assert_eq!(line, "https://example.com/|My Site|docs rust");
     }
 
     #[test]
-    fn list_line_without_title_omits_title_section() {
+    fn format_title_empty_string_when_absent() {
         let bkm: Bookmark = make_bookmark("https://example.com", None, &["rust"]);
-        let line: String = format_list_line(&bkm);
-        assert!(line.contains("https://example.com"), "missing URL");
-        assert!(!line.contains("None"), "should not contain 'None'");
-        assert!(line.contains("rust"), "missing tag");
-        assert_eq!(
-            line.matches('|').count(),
-            1,
-            "should have exactly one pipe separator when no title"
+        let path: &Path = Path::new("/data/goto/example.com/abc.yaml");
+        let line: String = format_list_line(
+            &[FormatField::Url, FormatField::Title, FormatField::Tags],
+            &bkm,
+            path,
+            "|",
         );
+        assert_eq!(line, "https://example.com/||rust");
     }
 
     #[test]
-    fn list_line_with_title_has_two_pipe_separators() {
-        let bkm: Bookmark = make_bookmark("https://example.com", Some("My Title"), &["foo"]);
-        let line: String = format_list_line(&bkm);
-        assert_eq!(
-            line.matches('|').count(),
-            2,
-            "should have two pipe separators when title present"
-        );
+    fn format_path_field_returns_absolute_path() {
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &[]);
+        let path: &Path = Path::new("/data/goto/example.com/abc.yaml");
+        let line: String = format_list_line(&[FormatField::Path], &bkm, path, "|");
+        assert_eq!(line, "/data/goto/example.com/abc.yaml");
+    }
+
+    #[test]
+    fn format_fields_respect_declared_order() {
+        let bkm: Bookmark = make_bookmark("https://example.com", Some("T"), &["z", "a"]);
+        let path: &Path = Path::new("/p/x.yaml");
+        let line: String =
+            format_list_line(&[FormatField::Tags, FormatField::Url], &bkm, path, "|");
+        assert_eq!(line, "a z|https://example.com/");
+    }
+
+    #[test]
+    fn format_custom_delimiter_is_used_verbatim() {
+        let bkm: Bookmark = make_bookmark("https://example.com", Some("T"), &[]);
+        let path: &Path = Path::new("/p/x.yaml");
+        let line: String =
+            format_list_line(&[FormatField::Url, FormatField::Title], &bkm, path, " | ");
+        assert_eq!(line, "https://example.com/ | T");
     }
 
     #[test]
