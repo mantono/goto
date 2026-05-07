@@ -14,6 +14,16 @@ found, the keywords will be used in a seach query instead with a search engine o
 - `goto select -s 0.5 git` - List all bookmarks with the tag git and a matching score of at least 0.5
 
 Editing a bookmark is then done by selecting it from the list and chosing the appropiate action.
+#### List Bookmarks
+- `goto list` - List all bookmarks (outputs only the URL by default, one per line)
+- `goto list rust docs` - List bookmarks that have **both** the tags "rust" and "docs"
+- `goto list --format=url,title,tags` - List all bookmarks with URL, title and tags per line
+- `goto list --format=url,title,tags --delimiter=" | "` - Same as above with ` | ` as separator
+- `goto list --format=url,path` - List URL and the absolute path to the bookmark file
+
+Available format fields: `url`, `title`, `tags`, `path`. Fields are separated by the delimiter with
+no surrounding spaces. The `title` field is left empty (not omitted) when not set on the bookmark,
+so the number of delimiters per line is always `number of fields - 1`.
 ## Bookmarks File
 ```yaml
 url: https://github.com/
