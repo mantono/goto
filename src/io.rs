@@ -57,7 +57,7 @@ pub fn read_title(default: Option<String>, theme: &dyn Theme, term: &Term) -> Op
 }
 
 pub fn read_tags(default: impl TagHolder, theme: &dyn Theme, term: &Term) -> HashSet<Tag> {
-    let tags: std::io::Result<String> = Input::with_theme(theme)
+    let tags: Result<String, dialoguer::Error> = Input::with_theme(theme)
         .with_prompt("Tags")
         .allow_empty(true)
         .with_initial_text(default.join())
@@ -66,22 +66,5 @@ pub fn read_tags(default: impl TagHolder, theme: &dyn Theme, term: &Term) -> Has
     match tags {
         Ok(tags) => Tag::new_set(tags),
         Err(_) => default.tags(),
-    }
-}
-
-pub fn read_url(default: Url, theme: &dyn Theme, term: &Term) -> Url {
-    let url: Option<String> = Input::with_theme(theme)
-        .with_prompt("URL")
-        .allow_empty(false)
-        .with_initial_text(default.to_string())
-        .interact_text_on(term)
-        .ok();
-
-    match url {
-        Some(url) => match url.trim().try_into() {
-            Ok(url) => url,
-            Err(_) => read_url(default, theme, term),
-        },
-        None => default,
     }
 }
