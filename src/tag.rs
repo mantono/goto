@@ -2,7 +2,7 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::{fmt::Display, hash::Hash, str::FromStr};
 
 lazy_static! {
@@ -27,7 +27,7 @@ impl Tag {
         DISCARD.replace_all(input, "").to_lowercase().trim().to_string()
     }
 
-    pub fn new_set<T: Into<String>>(tags: T) -> HashSet<Tag> {
+    pub fn new_set<T: Into<String>>(tags: T) -> BTreeSet<Tag> {
         TERMINATOR.split(&tags.into()).filter_map(|t| Tag::from_str(t).ok()).collect()
     }
 }
@@ -79,15 +79,15 @@ impl PartialOrd for Tag {
 
 pub trait TagHolder {
     fn join(&self) -> String;
-    fn tags(self) -> HashSet<Tag>;
+    fn tags(self) -> BTreeSet<Tag>;
 }
 
-impl TagHolder for HashSet<Tag> {
+impl TagHolder for BTreeSet<Tag> {
     fn join(&self) -> String {
         self.iter().join(" ")
     }
 
-    fn tags(self) -> HashSet<Tag> {
+    fn tags(self) -> BTreeSet<Tag> {
         self
     }
 }
@@ -97,7 +97,7 @@ impl TagHolder for Vec<Tag> {
         self.iter().join(" ")
     }
 
-    fn tags(self) -> HashSet<Tag> {
+    fn tags(self) -> BTreeSet<Tag> {
         self.into_iter().collect()
     }
 }

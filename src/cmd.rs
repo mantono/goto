@@ -10,7 +10,7 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::{
-    collections::HashSet,
+    collections::{BTreeSet, HashSet},
     io::Write,
     thread::{self, JoinHandle},
 };
@@ -103,7 +103,7 @@ pub fn add(
     let url: String = if PROTOCOL_PREFIX.is_match(&url) { url } else { format!("https://{}", url) };
     let url = url::Url::parse(&url).unwrap();
     let title: JoinHandle<Option<String>> = load_title(&url);
-    let tags: HashSet<Tag> = io::read_tags(default, theme, streams.term());
+    let tags: BTreeSet<Tag> = io::read_tags(default, theme, streams.term());
     let loaded_title: Option<String> = title.join().unwrap_or_default();
     let title: Option<String> = io::read_title(loaded_title, theme, streams.term());
 
@@ -223,7 +223,7 @@ mod tests {
 
     fn make_bookmark(url: &str, title: Option<&str>, tags: &[&str]) -> Bookmark {
         let url: url::Url = url::Url::parse(url).unwrap();
-        let tags: HashSet<Tag> = tags.iter().filter_map(|t| Tag::new(*t).ok()).collect();
+        let tags: BTreeSet<Tag> = tags.iter().filter_map(|t| Tag::new(*t).ok()).collect();
         Bookmark::new(url, title.map(String::from), tags).unwrap()
     }
 

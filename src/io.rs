@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::io::{BufWriter, Stderr, Stdout, Write};
 use std::{collections::HashSet, convert::TryInto};
 
@@ -56,7 +57,7 @@ pub fn read_title(default: Option<String>, theme: &dyn Theme, term: &Term) -> Op
         .ok()
 }
 
-pub fn read_tags(default: impl TagHolder, theme: &dyn Theme, term: &Term) -> HashSet<Tag> {
+pub fn read_tags(default: impl TagHolder, theme: &dyn Theme, term: &Term) -> BTreeSet<Tag> {
     let tags: Result<String, dialoguer::Error> = Input::with_theme(theme)
         .with_prompt("Tags")
         .allow_empty(true)
