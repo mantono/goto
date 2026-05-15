@@ -5,20 +5,15 @@ use crate::{
     Error,
 };
 use clap::{Subcommand, ValueEnum};
-use dialoguer::{theme::Theme, FuzzySelect, Select};
+use dialoguer::theme::Theme;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::BTreeSet,
     io::Write,
-    thread::{self, JoinHandle},
-};
-use std::{
-    iter::FromIterator,
     path::{Path, PathBuf},
 };
-use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum)]
 pub enum FormatField {
@@ -85,8 +80,6 @@ impl Default for Command {
 
 lazy_static! {
     static ref PROTOCOL_PREFIX: Regex = regex::Regex::new("^https?://").unwrap();
-    static ref TITLE: Regex =
-        regex::Regex::new(r"<(title|TITLE)>\s?.*\s?</(title|TITLE)>").unwrap();
 }
 
 fn is_hidden(entry: &walkdir::DirEntry) -> bool {
@@ -101,13 +94,12 @@ pub fn add(
     theme: &dyn Theme,
 ) -> Result<(), Error> {
     let url: String = if PROTOCOL_PREFIX.is_match(&url) { url } else { format!("https://{}", url) };
-    let url = url::Url::parse(&url).unwrap();
-    let title: JoinHandle<Option<String>> = load_title(&url);
+    let url: url::Url = url::Url::parse(&url).unwrap();
     let tags: BTreeSet<Tag> = io::read_tags(default, theme, streams.term());
-    let loaded_title: Option<String> = title.join().unwrap_or_default();
-    let title: Option<String> = io::read_title(loaded_title, theme, streams.term());
+    let title: Option<String> = io::read_title(None, theme, streams.term());
 
-    let bkm = bookmark::Bookmark::new(url, title, tags).unwrap();
+    let bkm: Bookmark = bookmark::Bookmark::new(url, title, tags).unwrap();
+    let bkm: Bookmark = run_on_add_hook(bkm)?;
     let bkm: Bookmark = save_bookmark(dir, bkm, true)?;
 
     writeln!(streams.output(), "{}", bkm)?;
@@ -115,21 +107,81 @@ pub fn add(
     Ok(())
 }
 
-fn load_title(url: &Url) -> JoinHandle<Option<String>> {
-    let url = url.clone();
-    thread::spawn(move || {
-        let body: String = reqwest::blocking::get(url).unwrap().text().unwrap();
-        let title: String = TITLE.find(&body).map(|title| title.as_str().to_string())?;
-        let title = title
-            .chars()
-            .skip(7)
-            .take_while(|c| *c != '<')
-            .collect::<String>()
-            .trim()
-            .to_string();
+#[derive(Debug)]
+pub enum HookError {
+    NonZeroExit(i32, String),
+    InvalidOutput(String),
+    Io(std::io::Error),
+}
 
-        Some(title)
-    })
+impl std::fmt::Display for HookError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HookError::NonZeroExit(code, stderr) => {
+                write!(f, "on-add hook exited with code {}: {}", code, stderr)
+            }
+            HookError::InvalidOutput(msg) => {
+                write!(f, "on-add hook returned invalid YAML: {}", msg)
+            }
+            HookError::Io(e) => write!(f, "on-add hook I/O error: {}", e),
+        }
+    }
+}
+
+impl From<std::io::Error> for HookError {
+    fn from(e: std::io::Error) -> Self {
+        HookError::Io(e)
+    }
+}
+
+impl From<HookError> for Error {
+    fn from(e: HookError) -> Self {
+        Error::HookFailed(e.to_string())
+    }
+}
+
+fn hook_path() -> PathBuf {
+    dirs_next::config_dir()
+        .unwrap_or_else(|| PathBuf::from("~/.config"))
+        .join("goto")
+        .join("hooks")
+        .join("on-add")
+}
+
+fn run_on_add_hook(bkm: Bookmark) -> Result<Bookmark, HookError> {
+    run_on_add_hook_with_path(bkm, &hook_path())
+}
+
+fn run_on_add_hook_with_path(bkm: Bookmark, path: &Path) -> Result<Bookmark, HookError> {
+    use std::io::Write as _;
+    use std::process::{Command, Stdio};
+
+    if !path.exists() {
+        return Ok(bkm);
+    }
+
+    let yaml: String = serde_yaml::to_string(&bkm).map_err(|e| HookError::InvalidOutput(e.to_string()))?;
+
+    let mut child = Command::new(path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    child.stdin.take().unwrap().write_all(yaml.as_bytes())?;
+
+    let output = child.wait_with_output()?;
+
+    if !output.status.success() {
+        let code: i32 = output.status.code().unwrap_or(-1);
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        return Err(HookError::NonZeroExit(code, stderr));
+    }
+
+    let modified: Bookmark = serde_yaml::from_slice(&output.stdout)
+        .map_err(|e| HookError::InvalidOutput(e.to_string()))?;
+
+    Ok(modified)
 }
 
 fn save_bookmark(dir: &Path, bkm: Bookmark, merge: bool) -> Result<Bookmark, FileError> {
@@ -220,6 +272,7 @@ pub fn list(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::PermissionsExt;
 
     fn make_bookmark(url: &str, title: Option<&str>, tags: &[&str]) -> Bookmark {
         let url: url::Url = url::Url::parse(url).unwrap();
@@ -315,5 +368,64 @@ mod tests {
         let bkm: Bookmark = make_bookmark("https://example.com", None, &["rust"]);
         let required: Vec<Tag> = vec![];
         assert!(has_all_tags(&bkm, &required));
+    }
+
+    // --- on-add hook tests ---
+
+    fn write_hook(dir: &Path, script: &str) -> PathBuf {
+        let hook_path: PathBuf = dir.join("on-add");
+        std::fs::write(&hook_path, script).unwrap();
+        std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        hook_path
+    }
+
+    #[test]
+    fn hook_absent_returns_bookmark_unchanged() {
+        let bkm: Bookmark = make_bookmark("https://example.com", Some("Title"), &["rust"]);
+        let non_existent: PathBuf = PathBuf::from("/tmp/goto_hook_does_not_exist_xyz");
+        let result: Bookmark = run_on_add_hook_with_path(bkm.clone(), &non_existent).unwrap();
+        assert_eq!(result, bkm);
+    }
+
+    #[test]
+    fn hook_passthrough_returns_bookmark_unchanged() {
+        let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
+        let hook_path: PathBuf = write_hook(dir.path(), "#!/bin/sh\ncat\n");
+        let bkm: Bookmark = make_bookmark("https://example.com", Some("Title"), &["rust"]);
+        let result: Bookmark = run_on_add_hook_with_path(bkm.clone(), &hook_path).unwrap();
+        assert_eq!(result, bkm);
+    }
+
+    #[test]
+    fn hook_can_modify_bookmark_title() {
+        let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
+        // Hook that sets the title field in the YAML output
+        let hook_path: PathBuf = write_hook(
+            dir.path(),
+            "#!/bin/sh\nprintf 'url: https://example.com/\\ntitle: Injected Title\\ntags:\\n  - rust\\n'\n",
+        );
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &["rust"]);
+        let result: Bookmark = run_on_add_hook_with_path(bkm, &hook_path).unwrap();
+        assert_eq!(result.title(), Some("Injected Title".to_string()));
+    }
+
+    #[test]
+    fn hook_non_zero_exit_returns_error() {
+        let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
+        let hook_path: PathBuf = write_hook(dir.path(), "#!/bin/sh\nexit 1\n");
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &[]);
+        let result: Result<Bookmark, HookError> =
+            run_on_add_hook_with_path(bkm, &hook_path);
+        assert!(matches!(result, Err(HookError::NonZeroExit(1, _))));
+    }
+
+    #[test]
+    fn hook_invalid_yaml_output_returns_error() {
+        let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
+        let hook_path: PathBuf = write_hook(dir.path(), "#!/bin/sh\nprintf 'not: valid: yaml: :::'\n");
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &[]);
+        let result: Result<Bookmark, HookError> =
+            run_on_add_hook_with_path(bkm, &hook_path);
+        assert!(matches!(result, Err(HookError::InvalidOutput(_))));
     }
 }

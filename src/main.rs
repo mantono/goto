@@ -51,6 +51,7 @@ pub enum Error {
     Formatting,
     Serialization,
     OpenUrl,
+    HookFailed(String),
     Other,
 }
 
