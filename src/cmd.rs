@@ -95,11 +95,13 @@ pub fn add(
 ) -> Result<(), Error> {
     let url: String = if PROTOCOL_PREFIX.is_match(&url) { url } else { format!("https://{}", url) };
     let url: url::Url = url::Url::parse(&url).unwrap();
-    let tags: BTreeSet<Tag> = io::read_tags(default, theme, streams.term());
-    let title: Option<String> = io::read_title(None, theme, streams.term());
+    let cli_tags: BTreeSet<Tag> = default.tags();
+    let bare: Bookmark = bookmark::Bookmark::new(url.clone(), None, cli_tags).unwrap();
+    let suggested: Bookmark = run_on_add_hook(bare)?;
+    let tags: BTreeSet<Tag> = io::read_tags(suggested.tags().clone(), theme, streams.term());
+    let title: Option<String> = io::read_title(suggested.title(), theme, streams.term());
 
     let bkm: Bookmark = bookmark::Bookmark::new(url, title, tags).unwrap();
-    let bkm: Bookmark = run_on_add_hook(bkm)?;
     let bkm: Bookmark = save_bookmark(dir, bkm, true)?;
 
     writeln!(streams.output(), "{}", bkm)?;
@@ -160,7 +162,8 @@ fn run_on_add_hook_with_path(bkm: Bookmark, path: &Path) -> Result<Bookmark, Hoo
         return Ok(bkm);
     }
 
-    let yaml: String = serde_yaml::to_string(&bkm).map_err(|e| HookError::InvalidOutput(e.to_string()))?;
+    let yaml: String =
+        serde_yaml::to_string(&bkm).map_err(|e| HookError::InvalidOutput(e.to_string()))?;
 
     let mut child = Command::new(path)
         .stdin(Stdio::piped())
@@ -414,18 +417,17 @@ mod tests {
         let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
         let hook_path: PathBuf = write_hook(dir.path(), "#!/bin/sh\nexit 1\n");
         let bkm: Bookmark = make_bookmark("https://example.com", None, &[]);
-        let result: Result<Bookmark, HookError> =
-            run_on_add_hook_with_path(bkm, &hook_path);
+        let result: Result<Bookmark, HookError> = run_on_add_hook_with_path(bkm, &hook_path);
         assert!(matches!(result, Err(HookError::NonZeroExit(1, _))));
     }
 
     #[test]
     fn hook_invalid_yaml_output_returns_error() {
         let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
-        let hook_path: PathBuf = write_hook(dir.path(), "#!/bin/sh\nprintf 'not: valid: yaml: :::'\n");
+        let hook_path: PathBuf =
+            write_hook(dir.path(), "#!/bin/sh\nprintf 'not: valid: yaml: :::'\n");
         let bkm: Bookmark = make_bookmark("https://example.com", None, &[]);
-        let result: Result<Bookmark, HookError> =
-            run_on_add_hook_with_path(bkm, &hook_path);
+        let result: Result<Bookmark, HookError> = run_on_add_hook_with_path(bkm, &hook_path);
         assert!(matches!(result, Err(HookError::InvalidOutput(_))));
     }
 }

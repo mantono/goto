@@ -55,6 +55,35 @@ conflicts, and when merge conflicts occur, they are easier to resolve. If you st
 files in JSON, so you can migrate to the new YAML format by running `goto migrate` (requires feature
 [migrate](README.md#migrate)).
 
+## Hooks
+
+### on-add
+
+`goto add` can run a hook script before saving a bookmark. The hook receives the bookmark as YAML
+on stdin and must output valid YAML on stdout. The script must be executable and placed at
+`~/.config/goto/hooks/on-add`.
+
+#### Example
+
+The following script automatically adds a tag based on the domain name:
+
+```sh
+#!/bin/sh
+yaml=$(cat)
+domain=$(echo "$yaml" | grep '^url:' | sed 's|^url: https\?://||' | sed 's|/.*$||')
+tag=""
+case "$domain" in
+  github.com)         tag="github" ;;
+  gitlab.com)         tag="gitlab" ;;
+  stackoverflow.com)  tag="stackoverflow" ;;
+esac
+if [ -n "$tag" ]; then
+  echo "$yaml" | sed "/^tags:/a\  - $tag"
+else
+  echo "$yaml"
+fi
+```
+
 ## Building
 To build and install run
 ```sh
