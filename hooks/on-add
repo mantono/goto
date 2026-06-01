@@ -1,0 +1,292 @@
+#!/usr/bin/env python3
+"""
+goto on-add hook: auto-enrich bookmarks with title and tags from the webpage.
+
+Reads a bookmark as YAML from stdin, fetches the URL, extracts the page title
+(if not already set) and relevant tags from HTML meta/Open Graph attributes,
+merges the extracted tags with any tags already present, then writes the
+enriched bookmark as YAML to stdout.
+
+On any network or parse failure the original bookmark is passed through
+unchanged. Always exits 0 so that the bookmark add is never aborted by this
+hook.
+
+Install:
+    cp hooks/on-add ~/.config/goto/hooks/on-add
+    chmod +x ~/.config/goto/hooks/on-add
+"""
+
+import re
+import sys
+import urllib.error
+import urllib.request
+from html.parser import HTMLParser
+from typing import Optional
+
+# ---------------------------------------------------------------------------
+# YAML handling — use PyYAML when available, fall back to a minimal built-in
+# implementation for the simple schema goto uses.
+# ---------------------------------------------------------------------------
+
+try:
+    import yaml as _yaml
+
+    def yaml_load(text: str) -> dict:
+        return _yaml.safe_load(text) or {}
+
+    def yaml_dump(data: dict) -> str:
+        return _yaml.dump(data, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+except ImportError:
+    # Minimal YAML parser/emitter — covers only the subset goto produces.
+
+    def yaml_load(text: str) -> dict:  # type: ignore[misc]
+        result: dict = {}
+        current_list_key: Optional[str] = None
+        for raw_line in text.splitlines():
+            line: str = raw_line.rstrip()
+            if not line or line.lstrip().startswith("#"):
+                continue
+            if line.startswith("  - "):
+                # List item continuation
+                if current_list_key is not None:
+                    result[current_list_key].append(line[4:].strip())
+                continue
+            if ":" in line:
+                key, _, value = line.partition(":")
+                key = key.strip()
+                value = value.strip()
+                # Treat both "key:" and "key: []" as an empty list.
+                if value in ("", "[]"):
+                    result[key] = []
+                    current_list_key = key
+                else:
+                    current_list_key = None
+                    result[key] = value
+        return result
+
+    def yaml_dump(data: dict) -> str:  # type: ignore[misc]
+        lines: list[str] = []
+        for key, value in data.items():
+            if isinstance(value, list):
+                if value:
+                    lines.append(f"{key}:")
+                    for item in value:
+                        lines.append(f"  - {item}")
+                else:
+                    # Emit as inline empty sequence — matches goto's serde_yaml output.
+                    lines.append(f"{key}: []")
+            elif value is not None and value != "":
+                lines.append(f"{key}: {value}")
+        return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Tag normalization — mirrors the rules in goto's tag.rs:
+#   DISCARD  = [,\s"\\]+   (removed entirely)
+#   TERMINATOR = [,\s]+    (used as split boundary)
+#   Result is lowercased.
+# ---------------------------------------------------------------------------
+
+_DISCARD: re.Pattern = re.compile(r'[,"\\]+')
+_SPLIT: re.Pattern = re.compile(r'[\s,]+')
+
+
+def normalize_tag(raw: str) -> str:
+    """Normalize a single tag token to match goto's Tag::normalize."""
+    cleaned: str = _DISCARD.sub("", raw).lower().strip()
+    return cleaned
+
+
+def tokenize_keyword(phrase: str) -> list[str]:
+    """Split a (potentially multi-word) keyword phrase into individual tags."""
+    tokens: list[str] = _SPLIT.split(phrase)
+    return [normalize_tag(t) for t in tokens if normalize_tag(t)]
+
+
+def extract_tags_from_keywords(raw_keywords: str) -> list[str]:
+    """Parse a comma-separated keywords string into a list of normalized tags."""
+    phrases: list[str] = [p.strip() for p in raw_keywords.split(",") if p.strip()]
+    tags: list[str] = []
+    for phrase in phrases:
+        tags.extend(tokenize_keyword(phrase))
+    return tags
+
+
+# ---------------------------------------------------------------------------
+# HTML parser — extracts <title> and relevant <meta> tags in a single pass.
+# ---------------------------------------------------------------------------
+
+class PageMetaParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.page_title: Optional[str] = None
+        self.meta_keywords: list[str] = []
+        self._in_title: bool = False
+        self._title_buf: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+        attr_map: dict[str, str] = {
+            k.lower(): (v or "") for k, v in attrs
+        }
+
+        if tag.lower() == "title":
+            self._in_title = True
+            return
+
+        if tag.lower() != "meta":
+            return
+
+        name: str = attr_map.get("name", "").lower()
+        prop: str = attr_map.get("property", "").lower()
+        content: str = attr_map.get("content", "").strip()
+
+        if not content:
+            return
+
+        # <meta name="keywords" content="...">
+        if name == "keywords":
+            self.meta_keywords.extend(extract_tags_from_keywords(content))
+            return
+
+        # Open Graph article tags:
+        #   <meta property="og:article:tag" content="...">
+        #   <meta property="article:tag" content="...">
+        if prop in ("og:article:tag", "article:tag"):
+            self.meta_keywords.extend(tokenize_keyword(content))
+            return
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "title" and self._in_title:
+            self.page_title = "".join(self._title_buf).strip() or None
+            self._in_title = False
+            self._title_buf = []
+
+    def handle_data(self, data: str) -> None:
+        if self._in_title:
+            self._title_buf.append(data)
+
+    # Stop parsing once </head> is reached — no need to scan the body.
+    def handle_endtag_head(self, tag: str) -> None:
+        if tag.lower() == "head":
+            raise StopIteration
+
+
+def parse_page(html: str) -> tuple[Optional[str], list[str]]:
+    """
+    Parse HTML and return (title, tags).
+
+    Parsing stops at </head> to avoid processing the entire document body.
+    """
+    parser: PageMetaParser = PageMetaParser()
+    head_end: int = html.lower().find("</head>")
+    fragment: str = html[:head_end] if head_end != -1 else html[:32768]
+    try:
+        parser.feed(fragment)
+    except Exception:
+        pass
+    return parser.page_title, parser.meta_keywords
+
+
+# ---------------------------------------------------------------------------
+# HTTP fetch
+# ---------------------------------------------------------------------------
+
+_USER_AGENT: str = (
+    "Mozilla/5.0 (X11; Linux x86_64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0 Safari/537.36"
+)
+_TIMEOUT_SECONDS: int = 8
+
+
+def fetch_html(url: str) -> Optional[str]:
+    """
+    Fetch the URL and return the response body as a string, or None on failure.
+
+    Errors (network, timeout, HTTP 4xx/5xx, decode, etc.) are silently swallowed
+    so the hook never blocks a bookmark add.
+    """
+    try:
+        req: urllib.request.Request = urllib.request.Request(
+            url, headers={"User-Agent": _USER_AGENT}
+        )
+        with urllib.request.urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:
+            charset: str = resp.headers.get_content_charset() or "utf-8"
+            raw_bytes: bytes = resp.read(512 * 1024)  # cap at 512 KB
+            return raw_bytes.decode(charset, errors="replace")
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Main logic
+# ---------------------------------------------------------------------------
+
+def merge_tags(existing: list[str], new_tags: list[str]) -> list[str]:
+    """Return sorted union of existing and new tags, preserving all user tags."""
+    combined: set[str] = set(existing) | set(new_tags)
+    return sorted(t for t in combined if t)
+
+
+def enrich(bookmark: dict) -> dict:
+    """
+    Given a parsed bookmark dict, fetch the page and return an enriched copy.
+    Falls back to returning the original dict unchanged on any error.
+
+    Output dict always uses canonical field order: url → title → tags.
+    """
+    url: Optional[str] = bookmark.get("url")
+    if not url:
+        return bookmark
+
+    html: Optional[str] = fetch_html(url)
+    if html is None:
+        return bookmark
+
+    page_title: Optional[str]
+    extracted_tags: list[str]
+    page_title, extracted_tags = parse_page(html)
+
+    # Only set title if the bookmark doesn't already have one.
+    existing_title: Optional[str] = bookmark.get("title") or None
+    resolved_title: Optional[str] = existing_title if existing_title else page_title
+
+    # Merge tags: existing (user-supplied) ∪ extracted.
+    existing_tags: list[str] = list(bookmark.get("tags") or [])
+    merged_tags: list[str] = merge_tags(existing_tags, extracted_tags) if extracted_tags else existing_tags
+
+    # Rebuild with canonical field order (url, title, tags) — mirrors goto's Bookmark struct.
+    result: dict = {"url": url}
+    if resolved_title:
+        result["title"] = resolved_title
+    result["tags"] = merged_tags
+
+    return result
+
+
+def main() -> None:
+    raw_input: str = sys.stdin.read()
+
+    try:
+        bookmark: dict = yaml_load(raw_input)
+    except Exception:
+        # Unparseable YAML — pass through unchanged.
+        sys.stdout.write(raw_input)
+        return
+
+    try:
+        enriched: dict = enrich(bookmark)
+    except Exception:
+        # Unexpected error — pass through unchanged.
+        sys.stdout.write(raw_input)
+        return
+
+    try:
+        sys.stdout.write(yaml_dump(enriched))
+    except Exception:
+        sys.stdout.write(raw_input)
+
+
+if __name__ == "__main__":
+    main()

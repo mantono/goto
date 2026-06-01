@@ -63,26 +63,30 @@ files in JSON, so you can migrate to the new YAML format by running `goto migrat
 on stdin and must output valid YAML on stdout. The script must be executable and placed at
 `~/.config/goto/hooks/on-add`.
 
-#### Example
+#### Title and Tag Hook
 
-The following script automatically adds a tag based on the domain name:
+The repository ships a ready-to-use Python hook at [`hooks/on-add`](hooks/on-add) that
+automatically enriches bookmarks by fetching the target webpage:
+
+- **Title** — extracted from the `<title>` element (only set if the bookmark has no title yet)
+- **Tags** — extracted from `<meta name="keywords">` and Open Graph article tags
+  (`og:article:tag`, `article:tag`), then **merged** with any tags already present
+
+Multi-word keywords are split into individual tags. All tags are normalized to lowercase with
+punctuation removed, matching goto's own tag rules.
+
+If the URL is unreachable (timeout, DNS failure, HTTP error, etc.) the bookmark is passed through
+unchanged. The hook always exits 0 so a failed fetch never aborts `goto add`.
+
+Install:
 
 ```sh
-#!/bin/sh
-yaml=$(cat)
-domain=$(echo "$yaml" | grep '^url:' | sed 's|^url: https\?://||' | sed 's|/.*$||')
-tag=""
-case "$domain" in
-  github.com)         tag="github" ;;
-  gitlab.com)         tag="gitlab" ;;
-  stackoverflow.com)  tag="stackoverflow" ;;
-esac
-if [ -n "$tag" ]; then
-  echo "$yaml" | sed "/^tags:/a\  - $tag"
-else
-  echo "$yaml"
-fi
+cp hooks/on-add ~/.config/goto/hooks/on-add
+chmod +x ~/.config/goto/hooks/on-add
 ```
+
+Requires Python 3. Uses only the standard library; [PyYAML](https://pypi.org/project/PyYAML/)
+is used when available for more robust YAML handling, but is not required.
 
 ## Building
 To build and install run
