@@ -5,20 +5,15 @@ use crate::{
     Error,
 };
 use clap::{Subcommand, ValueEnum};
-use dialoguer::{theme::Theme, FuzzySelect, Select};
+use dialoguer::theme::Theme;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::{
-    collections::HashSet,
+    collections::BTreeSet,
     io::Write,
-    thread::{self, JoinHandle},
-};
-use std::{
-    iter::FromIterator,
     path::{Path, PathBuf},
 };
-use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum)]
 pub enum FormatField {
@@ -48,26 +43,11 @@ pub enum Command {
     ///
     /// Add bookmark with URL and optionally some tags
     Add { url: String, tags: Vec<Tag> },
-    /// Open bookmark in browser
+    /// Edit an existing bookmark
     ///
-    /// Open a bookmark in the browser that is matching the given keywords. If several bookmarks
-    /// match the keywords, the best matching bookmark will be selected. If no bookmark is matching
-    /// the keywords, the keywords will be directed to a search query in a search engine.
-    Open {
-        #[clap(short = 's', long = "score", default_value = "0.05")]
-        min_score: f64,
-        keywords: Vec<Tag>,
-    },
-    /// Select from a list of bookmarks
-    ///
-    /// Select from a list of bookmarks
-    Select {
-        #[clap(short = 's', long = "score", default_value = "0.05")]
-        min_score: f64,
-        #[clap(short = 'n', long, default_value = "8192")]
-        limit: usize,
-        keywords: Vec<Tag>,
-    },
+    /// Edit the existing bookmark YAML file, and validate that the file has correct YAML syntax,
+    /// before overwriting the previous version of the file.
+    Edit { path: PathBuf },
     /// List bookmarks
     ///
     /// List bookmarks containing all of the provided tags. If no tags are provided, all bookmarks
@@ -90,168 +70,20 @@ pub enum Command {
 
 impl Default for Command {
     fn default() -> Self {
-        Command::Select {
-            min_score: 0.05,
-            limit: 8192,
-            keywords: Vec::with_capacity(0),
+        Command::List {
+            format: vec![FormatField::Url],
+            delimiter: String::from("|"),
+            tags: Vec::new(),
         }
     }
 }
 
 lazy_static! {
     static ref PROTOCOL_PREFIX: Regex = regex::Regex::new("^https?://").unwrap();
-    static ref TITLE: Regex =
-        regex::Regex::new(r"<(title|TITLE)>\s?.*\s?</(title|TITLE)>").unwrap();
-}
-
-fn filter(dir: &Path, keywords: Vec<Tag>, min_score: f64) -> Vec<(f64, Bookmark)> {
-    let keywords: HashSet<Tag> = HashSet::from_iter(keywords);
-    let min_score: f64 = if keywords.is_empty() { 0.0 } else { min_score };
-    walkdir::WalkDir::new(dir)
-        .into_iter()
-        .filter_entry(|f| !is_hidden(f))
-        .filter_map(|f| f.ok())
-        .filter(|f| f.file_type().is_file())
-        .filter_map(|f| match Bookmark::from_file(&f.clone().into_path()) {
-            Ok(bkm) => Some(bkm),
-            Err(e) => {
-                log::error!("Unable to read {}: {}", f.path().to_str().unwrap_or_default(), e);
-                None
-            }
-        })
-        .map(|bkm| (score(&bkm.terms(), &keywords), bkm))
-        .filter(|(score, _)| score >= &min_score)
-        .sorted_unstable_by(|b0, b1| b0.0.partial_cmp(&b1.0).unwrap().reverse())
-        .collect_vec()
 }
 
 fn is_hidden(entry: &walkdir::DirEntry) -> bool {
     entry.file_name().to_str().map(|f| f.starts_with('.')).unwrap_or(false)
-}
-
-pub fn open(
-    mut streams: Streams,
-    dir: &Path,
-    keywords: Vec<Tag>,
-    min_score: f64,
-) -> Result<(), Error> {
-    let query: String = search_query(&keywords);
-    let bookmarks: Vec<(f64, Bookmark)> = filter(dir, keywords, min_score);
-    let url: Url = match bookmarks.first() {
-        Some((_, bookmark)) => bookmark.url(),
-        None => {
-            writeln!(streams.ui(), "No bookmark found for keyword(s), searching online instead")?;
-            Url::parse(&query).unwrap()
-        }
-    };
-
-    match open::that(url.to_string()) {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            log::warn!("Unable to open bookarmrk: {:?}", e);
-            writeln!(streams.output(), "{}", url)?;
-            Err(Error::OpenUrl)
-        }
-    }
-}
-
-fn search_query(terms: &[Tag]) -> String {
-    let query: String = terms.iter().map(|t| t.to_string()).join("+");
-    format!("https://duckduckgo.com/?q={}", query)
-}
-
-pub fn select(
-    mut streams: Streams,
-    dir: &Path,
-    keywords: Vec<Tag>,
-    limit: usize,
-    min_score: f64,
-    theme: &dyn Theme,
-) -> Result<(), Error> {
-    let bookmarks: Vec<Bookmark> = filter(dir, keywords, min_score)
-        .into_iter()
-        .take(limit)
-        .map(|(_, bkm)| bkm)
-        .collect();
-
-    if bookmarks.is_empty() {
-        writeln!(streams.ui(), "No bookmarks found")?;
-        return Ok(());
-    }
-
-    let selection: Option<usize> = FuzzySelect::with_theme(theme)
-        .with_prompt("Select bookmark")
-        .default(0)
-        .items(&bookmarks)
-        .interact_on_opt(streams.term())?;
-
-    match selection {
-        Some(i) => select_action(streams, dir, bookmarks[i].clone(), theme),
-        None => Ok(()),
-    }
-}
-
-fn select_action(
-    mut streams: Streams,
-    dir: &Path,
-    bookmark: Bookmark,
-    theme: &dyn Theme,
-) -> Result<(), Error> {
-    let actions = vec![
-        "open",
-        "edit title",
-        "edit tags",
-        "edit URL",
-        "delete",
-        "exit",
-    ];
-    let selection: Option<usize> = Select::with_theme(theme)
-        .with_prompt("Select action")
-        .default(0)
-        .items(&actions)
-        .interact_on_opt(streams.term())?;
-
-    match selection {
-        Some(0) => {
-            open::that(bookmark.url().to_string())?;
-        }
-        Some(1) => {
-            let title: Option<String> = match bookmark.title() {
-                Some(title) => Some(title),
-                None => load_title(&bookmark.url()).join().unwrap(),
-            };
-            let title: Option<String> = io::read_title(title, theme, streams.term());
-            let bookmark = Bookmark::new(bookmark.url(), title, bookmark.tags().clone()).unwrap();
-            save_bookmark(dir, bookmark, true)?;
-        }
-        Some(2) => {
-            let tags = io::read_tags(bookmark.tags().clone(), theme, streams.term());
-            let bookmark = Bookmark::new(bookmark.url(), None, tags).unwrap();
-            save_bookmark(dir, bookmark, false)?;
-        }
-        Some(3) => {
-            let url = io::read_url(bookmark.url(), theme, streams.term());
-            if url != bookmark.url() {
-                let new_bookmark = Bookmark::new(url, None, bookmark.tags().clone()).unwrap();
-                save_bookmark(dir, new_bookmark, true)?;
-                delete_bookmark(dir, &bookmark)?;
-            }
-        }
-        Some(4) => {
-            delete_bookmark(dir, &bookmark)?;
-            let url: String = bookmark.url().to_string();
-            writeln!(streams.ui(), "Deleted bookmark {}", url)?;
-        }
-        _ => {}
-    };
-
-    Ok(())
-}
-
-fn score(v0: &HashSet<Tag>, v1: &HashSet<Tag>) -> f64 {
-    let union: f64 = v0.union(v1).count() as f64;
-    let intersection: f64 = v0.intersection(v1).count() as f64;
-    intersection / union
 }
 
 pub fn add(
@@ -262,13 +94,14 @@ pub fn add(
     theme: &dyn Theme,
 ) -> Result<(), Error> {
     let url: String = if PROTOCOL_PREFIX.is_match(&url) { url } else { format!("https://{}", url) };
-    let url = url::Url::parse(&url).unwrap();
-    let title: JoinHandle<Option<String>> = load_title(&url);
-    let tags: HashSet<Tag> = io::read_tags(default, theme, streams.term());
-    let loaded_title: Option<String> = title.join().unwrap_or_default();
-    let title: Option<String> = io::read_title(loaded_title, theme, streams.term());
+    let url: url::Url = url::Url::parse(&url).unwrap();
+    let cli_tags: BTreeSet<Tag> = default.tags();
+    let bare: Bookmark = bookmark::Bookmark::new(url.clone(), None, cli_tags).unwrap();
+    let suggested: Bookmark = run_on_add_hook(bare)?;
+    let tags: BTreeSet<Tag> = io::read_tags(suggested.tags().clone(), theme, streams.term());
+    let title: Option<String> = io::read_title(suggested.title(), theme, streams.term());
 
-    let bkm = bookmark::Bookmark::new(url, title, tags).unwrap();
+    let bkm: Bookmark = bookmark::Bookmark::new(url, title, tags).unwrap();
     let bkm: Bookmark = save_bookmark(dir, bkm, true)?;
 
     writeln!(streams.output(), "{}", bkm)?;
@@ -276,21 +109,82 @@ pub fn add(
     Ok(())
 }
 
-fn load_title(url: &Url) -> JoinHandle<Option<String>> {
-    let url = url.clone();
-    thread::spawn(move || {
-        let body: String = reqwest::blocking::get(url).unwrap().text().unwrap();
-        let title: String = TITLE.find(&body).map(|title| title.as_str().to_string())?;
-        let title = title
-            .chars()
-            .skip(7)
-            .take_while(|c| *c != '<')
-            .collect::<String>()
-            .trim()
-            .to_string();
+#[derive(Debug)]
+pub enum HookError {
+    NonZeroExit(i32, String),
+    InvalidOutput(String),
+    Io(std::io::Error),
+}
 
-        Some(title)
-    })
+impl std::fmt::Display for HookError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HookError::NonZeroExit(code, stderr) => {
+                write!(f, "on-add hook exited with code {}: {}", code, stderr)
+            }
+            HookError::InvalidOutput(msg) => {
+                write!(f, "on-add hook returned invalid YAML: {}", msg)
+            }
+            HookError::Io(e) => write!(f, "on-add hook I/O error: {}", e),
+        }
+    }
+}
+
+impl From<std::io::Error> for HookError {
+    fn from(e: std::io::Error) -> Self {
+        HookError::Io(e)
+    }
+}
+
+impl From<HookError> for Error {
+    fn from(e: HookError) -> Self {
+        Error::HookFailed(e.to_string())
+    }
+}
+
+fn hook_path() -> PathBuf {
+    dirs_next::config_dir()
+        .unwrap_or_else(|| PathBuf::from("~/.config"))
+        .join("goto")
+        .join("hooks")
+        .join("on-add")
+}
+
+fn run_on_add_hook(bkm: Bookmark) -> Result<Bookmark, HookError> {
+    run_on_add_hook_with_path(bkm, &hook_path())
+}
+
+fn run_on_add_hook_with_path(bkm: Bookmark, path: &Path) -> Result<Bookmark, HookError> {
+    use std::io::Write as _;
+    use std::process::{Command, Stdio};
+
+    if !path.exists() {
+        return Ok(bkm);
+    }
+
+    let yaml: String =
+        serde_yaml::to_string(&bkm).map_err(|e| HookError::InvalidOutput(e.to_string()))?;
+
+    let mut child = Command::new(path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    child.stdin.take().unwrap().write_all(yaml.as_bytes())?;
+
+    let output = child.wait_with_output()?;
+
+    if !output.status.success() {
+        let code: i32 = output.status.code().unwrap_or(-1);
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        return Err(HookError::NonZeroExit(code, stderr));
+    }
+
+    let modified: Bookmark = serde_yaml::from_slice(&output.stdout)
+        .map_err(|e| HookError::InvalidOutput(e.to_string()))?;
+
+    Ok(modified)
 }
 
 fn save_bookmark(dir: &Path, bkm: Bookmark, merge: bool) -> Result<Bookmark, FileError> {
@@ -307,6 +201,17 @@ fn save_bookmark(dir: &Path, bkm: Bookmark, merge: bool) -> Result<Bookmark, Fil
     std::fs::write(full_path, yaml)?;
 
     Ok(bkm)
+}
+
+pub fn edit(mut streams: Streams, path: PathBuf, theme: &dyn Theme) -> Result<(), Error> {
+    let bookmark = Bookmark::from_file(&path)?;
+    let title = io::read_title(bookmark.title(), theme, streams.term());
+    let tags = io::read_tags(bookmark.tags().clone(), theme, streams.term());
+    let updated = Bookmark::new(bookmark.url(), title, tags).unwrap();
+    let yaml = serde_yaml::to_string(&updated).map_err(|_| FileError::Serialize)?;
+    std::fs::write(&path, yaml)?;
+    writeln!(streams.output(), "{}", updated)?;
+    Ok(())
 }
 
 fn delete_bookmark(dir: &Path, bkm: &Bookmark) -> Result<(), std::io::Error> {
@@ -370,10 +275,11 @@ pub fn list(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::PermissionsExt;
 
     fn make_bookmark(url: &str, title: Option<&str>, tags: &[&str]) -> Bookmark {
         let url: url::Url = url::Url::parse(url).unwrap();
-        let tags: HashSet<Tag> = tags.iter().filter_map(|t| Tag::new(*t).ok()).collect();
+        let tags: BTreeSet<Tag> = tags.iter().filter_map(|t| Tag::new(*t).ok()).collect();
         Bookmark::new(url, title.map(String::from), tags).unwrap()
     }
 
@@ -465,5 +371,63 @@ mod tests {
         let bkm: Bookmark = make_bookmark("https://example.com", None, &["rust"]);
         let required: Vec<Tag> = vec![];
         assert!(has_all_tags(&bkm, &required));
+    }
+
+    // --- on-add hook tests ---
+
+    fn write_hook(dir: &Path, script: &str) -> PathBuf {
+        let hook_path: PathBuf = dir.join("on-add");
+        std::fs::write(&hook_path, script).unwrap();
+        std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        hook_path
+    }
+
+    #[test]
+    fn hook_absent_returns_bookmark_unchanged() {
+        let bkm: Bookmark = make_bookmark("https://example.com", Some("Title"), &["rust"]);
+        let non_existent: PathBuf = PathBuf::from("/tmp/goto_hook_does_not_exist_xyz");
+        let result: Bookmark = run_on_add_hook_with_path(bkm.clone(), &non_existent).unwrap();
+        assert_eq!(result, bkm);
+    }
+
+    #[test]
+    fn hook_passthrough_returns_bookmark_unchanged() {
+        let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
+        let hook_path: PathBuf = write_hook(dir.path(), "#!/bin/sh\ncat\n");
+        let bkm: Bookmark = make_bookmark("https://example.com", Some("Title"), &["rust"]);
+        let result: Bookmark = run_on_add_hook_with_path(bkm.clone(), &hook_path).unwrap();
+        assert_eq!(result, bkm);
+    }
+
+    #[test]
+    fn hook_can_modify_bookmark_title() {
+        let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
+        // Hook that sets the title field in the YAML output
+        let hook_path: PathBuf = write_hook(
+            dir.path(),
+            "#!/bin/sh\nprintf 'url: https://example.com/\\ntitle: Injected Title\\ntags:\\n  - rust\\n'\n",
+        );
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &["rust"]);
+        let result: Bookmark = run_on_add_hook_with_path(bkm, &hook_path).unwrap();
+        assert_eq!(result.title(), Some("Injected Title".to_string()));
+    }
+
+    #[test]
+    fn hook_non_zero_exit_returns_error() {
+        let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
+        let hook_path: PathBuf = write_hook(dir.path(), "#!/bin/sh\nexit 1\n");
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &[]);
+        let result: Result<Bookmark, HookError> = run_on_add_hook_with_path(bkm, &hook_path);
+        assert!(matches!(result, Err(HookError::NonZeroExit(1, _))));
+    }
+
+    #[test]
+    fn hook_invalid_yaml_output_returns_error() {
+        let dir: tempfile::TempDir = tempfile::tempdir().unwrap();
+        let hook_path: PathBuf =
+            write_hook(dir.path(), "#!/bin/sh\nprintf 'not: valid: yaml: :::'\n");
+        let bkm: Bookmark = make_bookmark("https://example.com", None, &[]);
+        let result: Result<Bookmark, HookError> = run_on_add_hook_with_path(bkm, &hook_path);
+        assert!(matches!(result, Err(HookError::InvalidOutput(_))));
     }
 }

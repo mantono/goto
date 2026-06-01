@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::{collections::HashSet, convert::TryInto, fmt::Display, path::PathBuf, str::FromStr};
 use std::{hash::Hash, path::Path};
 use url::Url;
@@ -11,14 +12,14 @@ use crate::tag::Tag;
 pub struct Bookmark {
     url: Url,
     title: Option<String>,
-    tags: HashSet<Tag>,
+    tags: BTreeSet<Tag>,
 }
 
 impl Bookmark {
     pub fn new<T: TryInto<Url>>(
         url: T,
         title: Option<String>,
-        tags: HashSet<Tag>,
+        tags: BTreeSet<Tag>,
     ) -> Result<Self, Error> {
         let url: Url = match url.try_into() {
             Ok(url) => url,
@@ -78,12 +79,12 @@ impl Bookmark {
         self.title.clone()
     }
 
-    pub fn tags(&self) -> &HashSet<Tag> {
+    pub fn tags(&self) -> &BTreeSet<Tag> {
         &self.tags
     }
 
-    pub fn terms(&self) -> HashSet<Tag> {
-        let mut terms: HashSet<Tag> = self.tags.clone();
+    pub fn terms(&self) -> BTreeSet<Tag> {
+        let mut terms: BTreeSet<Tag> = self.tags.clone();
         if let Some(domain) = self.root_domain() {
             Tag::new(domain).ok().map(|d| terms.insert(d));
         };
@@ -101,7 +102,7 @@ impl Bookmark {
         if self.url != other.url {
             self
         } else {
-            let tags: HashSet<Tag> = self.tags.iter().chain(other.tags.iter()).cloned().collect();
+            let tags: BTreeSet<Tag> = self.tags.iter().chain(other.tags.iter()).cloned().collect();
 
             Bookmark { tags, ..self }
         }

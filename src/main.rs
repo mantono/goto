@@ -34,15 +34,7 @@ fn main() -> Result<(), Error> {
 
     match cfg.cmd.unwrap_or_default() {
         cmd::Command::Add { url, tags } => cmd::add(streams, &dir, url, tags, &*theme),
-        cmd::Command::Open {
-            min_score,
-            keywords,
-        } => cmd::open(streams, &dir, keywords, min_score),
-        cmd::Command::Select {
-            min_score,
-            limit,
-            keywords,
-        } => cmd::select(streams, &dir, keywords, limit, min_score, &*theme),
+        cmd::Command::Edit { path } => cmd::edit(streams, path, &*theme),
         cmd::Command::List {
             tags,
             format,
@@ -59,6 +51,7 @@ pub enum Error {
     Formatting,
     Serialization,
     OpenUrl,
+    HookFailed(String),
     Other,
 }
 
